@@ -785,6 +785,11 @@ void eventHandler( byte index, CANFrame *msg )
     default:
       if( evVal <= EVAL_TESTCH10 ) /* then it is TestCh1 to TestCh10 */
       {
+        if( evCommand >= EVAL_TESTCH1 && evCommand <= EVAL_TESTCH10 )
+        {
+          Serial << " (testend" << evCommand << ')';
+          analogWrite( PWMPIN[(evCommand -1)], var[(evCommand -1)].dcCur );          
+        }
         testDC = ( evOn ? 254 : 1 ); 
         evCommand = evVal;
         Serial << sEVAL[evVal] << " dc=" << testDC;        

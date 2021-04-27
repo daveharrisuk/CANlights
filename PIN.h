@@ -54,76 +54,72 @@
 const byte PWMPIN[CHANQTY]  { 3, 5, 6, 7, 8, 9, 10, 44, 45, 46 };
 
 
+/* Alarms and status  outputs */
 
-/* Alarms and status       */
+const byte PINAWDSIG { 37 };  /* AudioWarningDevice signal            */
 
-const byte PINAWDSIG = 37; /* AudioWarningDevice signal          */
+const byte PINLEDRED { 36 };  /* Red LED.    Error                    */
 
-const byte PINLEDRED = 36; /* Red LED.    Error                  */
+const byte PINLEDGRN { 35 };  /* Green LED.  CBUS SLiM                */
 
-const byte PINLEDGRN = 35; /* Green LED.  CBUS SLiM              */
+const byte PINLEDYEL { 34 };  /* Yellow LED. CBUS FLiM                */
 
-const byte PINLEDYEL = 34; /* Yellow LED. CBUS FLiM              */
-
-const byte PINLEDORA = 33; /* Orange LED. Night mode             */
-
+const byte PINLEDORA { 33 };  /* Orange LED. Night mode               */
 
 
 /* inputs        */
 
-const byte PINSENSE = A0;   /* All MOSFET via 0R05 for 2.6A max  */
+const byte PINSENSE { A0 };   /* All MOSFET Id via 0R05 for 2.6A max  */
 
-const byte PININPUT = A6;   /* module input via OptoIsolator     */
+const byte PINBLUE { A14 };   /* PolyFuse sense, Volts on blue LED    */
 
-const byte PINBLUE = A14;   /* PolyFuse sense, Volts on blue LED */
+const byte PINDAYNIGHTPB { A12 }; /* local day/night PB switch        */
 
-const byte PINSW0 = 32;              // push button switch pin
+//const byte PININPUT { A6 };   /* Lights_1 module input via Opto     */
 
-//const byte PINTACTSW = A12; /* Tactile push button switch        */
+const byte PINSW0 { 32 };     /* Lights_1 Adr1   */
 
+const byte PINNOCAN { 29 };   /* Link in if no CAN connected          */
+
+const byte PINFLIMSW { 28 };  /* FLiM/SLiM push switch                */
 
 
 /* SPI bus      */
 
-const byte PINSPIMISO = 50;  /* Master In, Slave Out  (HW SPI 50) */
-const byte PINSPIMOSI = 51;  /* Master Out, Slave In  (HW SPI 51) */
-const byte PINSPISCK  = 52;  /* clock                 (HW SPI 52) */
-const byte PINSPI_SS  = 53;  /* Slave Select                      */
-const byte PINSPI_INT = 2;   /* Interrupt (must be an INT pin)    */
-
-const unsigned long SPI_FREQ = 8000000UL; /* frequency of SPI clock */
+const byte PINSPIMISO { 50 };  /* Master In, Slave Out  (HW SPI 50) */
+const byte PINSPIMOSI { 51 };  /* Master Out, Slave In  (HW SPI 51) */
+const byte PINSPISCK  { 52 };  /* clock                 (HW SPI 52) */
+const byte PINSPI_SS  { 53 };  /* Slave Select                      */
+const byte PINSPI_INT { 2 };   /* Interrupt (must be an INT pin)    */
 
 
+/* Rotary Encoder inputs */
 
-/* Rotary Encoder     */
-
-const byte PINENCPHA = 18;   /* encoder phase A (must be INT pin) */
-const byte PINENCPHB = 17;   /* encoder phase B                   */
-const byte PINENCSW  = 19;   /* encoder SW (must be INT pin)      */
-
+const byte PINENCPHA { 18 };   /* encoder phase A (must be INT pin) */
+const byte PINENCPHB { 17 };   /* encoder phase B                   */
+const byte PINENCSW  { 19 };   /* encoder SW (must be INT pin)      */
 
 
-/* I2C bus            */
+/* I2C bus       */
 
-const byte PINI2CSCL = 20;   /* I2C clock     (HW I2C pin is 20 ) */
-const byte PINI2CSDA = 21;   /* I2C data      (HW I2C pin is 21 ) */
+const byte PINI2CSCL { 20 };   /* I2C clock     (HW I2C pin is 20 ) */
+const byte PINI2CSDA { 21 };   /* I2C data      (HW I2C pin is 21 ) */
 
 
+/* Test Point outputs  */
 
-/*  Test Points      */
-
-const byte PINTP_D30 = 30;     /* MEGA MCU pin D30 maps CPU pin PC7 */
+const byte PINTP_D30 { 30 };   /* MEGA MCU pin D30 maps CPU pin PC7 */
                                /* macros to fast digitalWrite       */
-                               
-#define SetPINTP_D30   PORTC = PORTC | B10000000
-#define ClrPINTP_D30   PORTC = PORTC & B01111111
+
+#define PINTP_D30_HIGH  PORTC = PORTC | B10000000
+#define PINTP_D30_LOW   PORTC = PORTC & B01111111
 
 
-const byte PINTP_D31 = 31;     /* MEGA MCU pin D31 maps CPU pin PC6 */
+const byte PINTP_D31 { 31 };   /* MEGA MCU pin D31 maps CPU pin PC6 */
                                /* macros to fast digitalWrite       */
-                               
-#define SetPINTP_D31   PORTC = PORTC | B01000000
-#define ClrPINTP_D31   PORTC = PORTC & B10111111
+
+#define PINTP_D31_HIGH  PORTC = PORTC | B01000000
+#define PINTP_D31_LOW   PORTC = PORTC & B10111111
 
 
 #endif /* PIN_H__ 

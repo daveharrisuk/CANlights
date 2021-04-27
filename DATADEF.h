@@ -22,61 +22,61 @@
 
 enum EVAL_t : byte  /* EV values on stored events */
 {
-  EVAL_MODE_DAYNIGHT = 0,     /* On event NIGHT, Off event DAY.  Set input global */
-  EVAL_TESTCH1 = 1,      /* On event DC=254, Off event DC=1                  */
-  EVAL_TESTCH2 = 2,      /* On event DC=254, Off event DC=1                  */
-  EVAL_TESTCH3 = 3,      /* On event DC=254, Off event DC=1                  */
-  EVAL_TESTCH4 = 4,      /* On event DC=254, Off event DC=1                  */
-  EVAL_TESTCH5 = 5,      /* On event DC=254, Off event DC=1                  */
-  EVAL_TESTCH6 = 6,      /* On event DC=254, Off event DC=1                  */
-  EVAL_TESTCH7 = 7,      /* On event DC=254, Off event DC=1                  */
-  EVAL_TESTCH8 = 8,      /* On event DC=254, Off event DC=1                  */
-  EVAL_TESTCH9 = 9,      /* On event DC=254, Off event DC=1                  */
-  EVAL_TESTCH10 = 10,    /* On event DC=254, Off event DC=1                  */  
-  EVAL_TESTOFF = 11      /* On event all UnTest, Off event NA                */
+  EVAL_DAYNIGHT = 0,     /* On event NIGHT, Off event DAY.  Set input global  */
+  EVAL_TESTCH1 = 1,      /* On event DC=254, Off event DC=1                   */
+  EVAL_TESTCH2 = 2,      /* On event DC=254, Off event DC=1                   */
+  EVAL_TESTCH3 = 3,      /* On event DC=254, Off event DC=1                   */
+  EVAL_TESTCH4 = 4,      /* On event DC=254, Off event DC=1                   */
+  EVAL_TESTCH5 = 5,      /* On event DC=254, Off event DC=1                   */
+  EVAL_TESTCH6 = 6,      /* On event DC=254, Off event DC=1                   */
+  EVAL_TESTCH7 = 7,      /* On event DC=254, Off event DC=1                   */
+  EVAL_TESTCH8 = 8,      /* On event DC=254, Off event DC=1                   */
+  EVAL_TESTCH9 = 9,      /* On event DC=254, Off event DC=1                   */
+  EVAL_TESTCH10 = 10,    /* On event DC=254, Off event DC=1                   */  
+  EVAL_TESTEND  = 11,    /* On event Test End, Off event NA                   */
+  EVAL_SHUTDOWN = 12     /* On = All chans DC=0, Off event = normal operation */
 };
 
-const byte SIZE_EVAL { 12 };
+const byte SIZE_EVAL { 13 };
 
-const char sEVAL[SIZE_EVAL][9]
+const char sEVAL[SIZE_EVAL][9] /* fixed width strings */
 {
-  "DayNight",               /* fixed width strings */
-  "TestCh1 ",
-  "TestCh2 ",
-  "TestCh3 ",
-  "TestCh4 ",
-  "TestCh5 ",
-  "TestCh6 ",
-  "TestCh7 ",
-  "TestCh8 ",
-  "TestCh9 ",
-  "TestCh10",
-  "TestOff "
+  "DayNight",             /* switch day or night          */
+  "TestCh1 ",             /* Chan 1 DC = 1 or 254         */
+  "TestCh2 ",             /* Chan 2 DC = 1 or 254         */
+  "TestCh3 ",             /* Chan 3 DC = 1 or 254         */
+  "TestCh4 ",             /* Chan 4 DC = 1 or 254         */
+  "TestCh5 ",             /* Chan 5 DC = 1 or 254         */
+  "TestCh6 ",             /* Chan 6 DC = 1 or 254         */
+  "TestCh7 ",             /* Chan 7 DC = 1 or 254         */
+  "TestCh8 ",             /* Chan 8 DC = 1 or 254         */
+  "TestCh9 ",             /* Chan 9 DC = 1 or 254         */
+  "TestCh10",             /* Chan 10 DC = 1 or 254        */
+  "TestEnd ",             /* Test mode end                */
+  "ShutDown"              /* all channels duty cycle = 0  */
 };
 
 
 
-/* Event Numbers (EN) for OPC ACON and ACOF message sending */
 
-enum CBUS_EN_t : byte 
+enum CBUS_EN_t : byte  /* Event Numbers(EN) for ACON/ACOF message sending */
 {
-  EN_TESTMSG   = 0,      /* On event NA, Off event NA                     */
-  EN_OVERAMP   = 1,      /* On event = OverAmps, Off event = No Alarm     */
-  EN_UNDERVOLT = 2,      /* On event = UnderVolt, Off event = No Alarm    */
-  EN_POWER     = 3,      /* On event = Power On, Off event = Power Off    */
-  EN_PBPRESS   = 4       /* On event = Pressed, Off event = released      */
+  EN_TESTMSG   = 0,    /* On event NA, Off event NA                         */
+  EN_ALARM     = 1,    /* On event = Alarm, Off event = No Alarm            */
+  EN_POWER     = 2,    /* On event = Power On, Off event = Power Off        */
+  EN_PBPRESS   = 3     /* On event = Pressed, Off event = released          */
 };
 
 const byte SIZE_EN { 5 };
 
-const char sEN[SIZE_EN][10] 
-{
-  " TestMsg ",               /* fixed width strings */
-  " OverAmp ",
-  "UnderVolt",
-  " Power   ",
-  " PBpress "
+const char sEN[SIZE_EN][10]   /* fixed width strings  */
+{                          
+  " TestMsg ",                /* test message         */
+  " Alarm   ",                /* Alarm                */
+  " Power   ",                /* CPU running          */
+  " PBpress "                 /* push button pressed  */
 };
+
 
 
 /* table sizes */
@@ -85,58 +85,48 @@ const byte CHANQTY { 10 };   /* qty of PWM channels used for light strings */
 
 const byte MAXDC { 255 };    /* Duty Cycle ranges 0 to 255                 */
 
+
 const byte NVQTY { 60 };     /* qty of Node Variables                      */
   
-const byte EVENTSQTY { 12 }; /* total events required                      */
+const byte EVENTSQTY { 64 }; /* total events required                      */
 
 
 
-/* channel phase codes.  for input global var */
-
-enum PHASE_t : byte { PHASE0 = 0, PHASE1 };
-    
-const char sPHASE[2][4] { "ph0", "ph1" };           /* fixed width strings */
-
-
-
-/* module input codes. for input global var */
-  
-enum INPUT_t : byte { INPUT_DAY = 0, INPUT_NIGHT };
-
+enum INPUT_t : bool   /* module input codes. for input global var */
+{
+  INPUT_DAY = 0, INPUT_NIGHT = 1 
+};
 const char sINPUT[2][6] { "Day  ", "Night" };        /* fixed width strings */
 
 
 
-/* channel state codes. For var[] */
-
-enum STATE_t : byte { STEADY = 0, TRANSIT, DELAY };
-
+enum STATE_t : byte  /* channel state codes. For var[] */
+{
+  STATE_STEADY = 0, STATE_TRANSIT, STATE_DELAY 
+};
 const char sSTATE[3][5] { "Stdy", "Tran", "Dly " };  /* fixed width strings */
 
 
 
-/* channel mode codes. For global var[] */
-
-const byte MODEQTY { 6 };
-
-enum MODE_t : byte
+enum MODE_t : byte    /* channel mode codes. For global var[] */
 {
   MODE_DAYNIGHT = 0,
-  MODE_DUSK     = 1,
-  MODE_DAWN     = 2,
-  MODE_DUSKDAWN = 3,
-  MODE_NIGHT010 = 4,
-  MODE_DAY010   = 5
+  MODE_DUSK,
+  MODE_DAWN,
+  MODE_DUSKDAWN,
+  MODE_NIGHT010,
+  MODE_DAY010
 };
+const byte MODEQTY { 6 };
 
 const char sMODE[MODEQTY][10]    /* Mode code string    */
 {
   "DayNight ",                   /* fixed width strings */
-  "  Dusk   ",
-  "  Dawn   ",
+  "Dusk     ",
+  "Dawn     ",
   "DuskDawn ",
   "Night010 ",
-  " Day010  "
+  "Day010   "
 };
 
 /* Channel Modes...
@@ -183,49 +173,29 @@ const char sMODE[MODEQTY][10]    /* Mode code string    */
 
 
 
-/* module NV array groups */
-
-enum NVGROUP_t : byte { NVTRAN = 0, NVDLY0, NVDLY1, NVDC0, NVDC1, NVMODE };
-
-const char sNVGROUP[6][8] 
+struct var_t   /* channel data structure. Populated at boot time from NVs    */
 {
-  " Tran s",                /* fixed width strings */
-  " Dly0 s",
-  " Dly1 s",
-  "  DC0  ",
-  "  DC1  ",
-  " Mode  "
-};
-
-
-
-struct var_t   /* channel data structure */
-{
-  byte      dc[2];        /* DC0 and DC1  Phase 0 & phase 1 target   0 - 255 */
+  byte      dc[2];        /* DC0 & DC1 phase 0 & phase 1 targets     0 - 255 */
   
   byte      dcCur;        /* current DC value                        0 - 255 */
   
-  uint32_t  msCount;      /* millis() count for step or delay     0 - 255000 */
+  uint32_t  msCount;      /* millis() counter for step or delay   0 - 255000 */
                       
   byte      secCount;     /* working reg for seconds count           0 - 255 */
   
-  STATE_t   state;        /* "Stdy", "Tran", "Dlay"                    0 - 2 */
+  STATE_t   state;        /* "Stdy", "Tran", "Dlay" live trackers      0 - 2 */
   
   bool      phase;        /* phase 0 or 1                              0 - 1 */
   
   uint16_t  msPerStep;    /* ms between duty cycle inc/dec           0 - 65k */
-                          /* Derived from NV Transit seconds during setup()  */
+                          /* Derived from NV Transit seconds                 */
                          
-  byte      secTrans;     /* Transition secs copied from NV at boot  0 - 255 */
+  byte      secTrans;     /* Transition seconds                      0 - 255 */
   
-  byte      secDelay[2];  /* Delay secs copied from NV at boot time  0 - 255 */
+  byte      secDelay[2];  /* Delay seconds                           0 - 255 */
 
-  MODE_t    mode;         /* chan mode copied from NV at boot time     0 - 5 */  
+  MODE_t    mode;         /* chan mode                                 0 - 5 */  
 };
-
-
-
-const uint32_t MAXmsPERSTEP { 65534 };  /* fix overflow if abs(DC0-DC1) < 4  */
 
 
 

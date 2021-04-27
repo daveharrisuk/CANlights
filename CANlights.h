@@ -1,15 +1,15 @@
 /*file: CANlights.h         This is include file for CANlights.ino sketch
  *----------------------------------------------------------------------------
  * 
- *  CANlights control module for 10 channels
+ *  CANlights - control module for 10 channels
  * 
  * Author: Dave Harris. Andover, UK. © Dave Harris 2021
  *
  * This work is licensed under the Creative Commons
  *    Attribution-NonCommercial-ShareAlike 4.0 International License.
  * To view a copy of this license, 
- *  visit http://creativecommons.org/licenses/by-nc-sa/4.0/ or send a  
- *  letter to Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
+ *  visit http://creativecommons.org/licenses/by-nc-sa/4.0/ or  
+ *  send letter to Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
  * 
 */
 #ifndef CANLIGHTS_H__  /* include guard */
@@ -31,14 +31,11 @@ class Power
     bool isOverAmp();               /* read Volts on sense resistor as Amps   */
     void printAmps();               /* print, approx, measured mA to Serial   */
     void test();                    /* if fault alarm & reduce duty cycles    */
-    void overrideDC( byte );        /*  set duty cycles to lower value        */
-    void restoreDC();               /* restore running dc                     */
 
   private :
   
     uint16_t amps;                  /* latest Amp reading                     */
         
-    bool muteAlarm = false;
   
     /*  Amps calibrate
      * Rsense = 0R050,   2.0 A = 0.100 V on PINSENSE, into ADC
@@ -67,11 +64,11 @@ class GetNV
     byte dc( byte, bool );      /* return DutyCycle NV for chan/index */
     byte mode( byte );          /* return mode NV for chan            */
   
-    enum NV_t : byte { TRAN = 0, DLY = 1, DC = 2, MODE = 3, SIZENVMAP };
+    enum NV_t : byte { NV_TRAN = 0, NV_DLY, NV_DC, NV_MODE, NV_MAPSIZE };
 
   private :
 
-    static constexpr byte NVmap[4][2] 
+    static constexpr byte NVmap[NV_MAPSIZE][2] 
     {
       { 1,  1 },  /* Transition Seconds for phase 0 or 1 are the same */
       { 11, 21 }, /* Delay Seconds for phase 0 and 1                  */
@@ -93,11 +90,10 @@ class SerMon
   public :
   
     void about();
-    void state();
+    void cbusState();
     void variables();
     void storedEvents();
     void freeSRAM();
-    void menu();
     void processinput();
     
 }; /* end of class SerMon */
@@ -107,17 +103,23 @@ class SerMon
 /*-----------------------------function declararioins -------------------------
 */
 
-void setPins();
-
 void setup();
 
 void loop();
+
+void processChannels();     /* foreground 1ms timer1 process     */
+
+void startNewPhase();
 
 void eventHandler( byte, CANFrame * );
 
 void frameHandler( CANFrame * ); 
 
-void sendMsg( bool, uint16_t );
+void setPins();
+
+void setupChannels();
+
+void sendCBUSmessage( bool, uint16_t );
 
 void resetNodeVariables();
 

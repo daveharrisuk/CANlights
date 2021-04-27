@@ -1,23 +1,18 @@
 /* file: CANlights.ino
-* ------------------------------------------------------------------------------
-*
-* CANlights CBUS module - Controller for overhead/street/building LED strings. 
+ *------------------------------------------------------------------------------
+ *
+ * CANlights CBUS module. 10x LED string controller for overhead/street/building 
 */
 
-const char  sMODTITLE[] {"CANlights © Dave Harris (MERG M2740) 2021"};
-
-const char sCBUSTITLE[] {"CBUS library © Duncan Greenwood (MERG M5767) 2019"};
-
-const byte VERSIONMAJOR { 0 };          /* CBUS module versioning style */
-
+const char  sMODTITLE[] { "CANlights © Dave Harris (MERG M2740) 2021" };
+const char sCBUSTITLE[] { "CBUS library © Duncan Greenwood (MERG M5767) 2019" };
+const byte VERSIONMAJOR { 0 };            /* CBUS module versioning style   */
 const char VERSIONMINOR { 'a' };
-
-const byte  VERSIONBETA { 2 };          /* 0 is Released, > 0 is beta   */
-
-const byte    MODULE_ID { 99 };
-
+const byte VERSIONBETA  { 2 };            /* 0 is Released, > 0 is beta     */
+const byte MODULE_ID    { 99 };
 unsigned char sCBUSNAME[7] { 'L', 'I', 'G', 'H', 'T', 'S', ' ' };
 
+const float SPI_MHz { 16.0 };             /* frequency of CAN SPI bus clock */
 
 /*------------------------ © Copyright and License -----------------------------
  *  
@@ -29,31 +24,30 @@ unsigned char sCBUSNAME[7] { 'L', 'I', 'G', 'H', 'T', 'S', ' ' };
  *   Attribution-NonCommercial-ShareAlike 4.0 International License.
  *
  * To view a copy of this license,
- *  visit http://creativecommons.org/licenses/by-nc-sa/4.0/ or send
- *  a letter to Creative Commons, PO Box1866, Mountain View, CA 94042 USA.
-*/
-
-
-/*-------------------------- Description --------------------------------------
+ *  visit http://creativecommons.org/licenses/by-nc-sa/4.0/   or 
+ *  send a letter to Creative Commons, PO Box1866, Mountain View, CA 94042 USA.
+ *
+ *-------------------------- Program Description ------------------------------
  *
  * CBUS layout lighting control module for 10 LED strings.
  *
  * - 10x 12 Volt PWM channels driving LED strings. 
  *
  * - Input (Day/Night) triggers channel modes...
- *    MODE_DAYNIGHT : Duty cycle (DC) transition on input change
- *    DAWN     : DC transitions on input changing to day
- *    DUSK     : DC transitions on input changing to night
- *    DUSKDAWN : DC transitions on input change
+ *    DAYNIGHT : Duty cycle (DC) transition on input change
+ *    DAWN     : DC transitions on input going on then off
+ *    DUSK     : DC transitions on input going on then off
+ *    DUSKDAWN : DC transitions on input going on then off at either change
  *    NIGHT010 : During night time, LEDs transition at durations
  *    DAY010   : During day time, LEDs transition at durations
- *    tba ALWAYS010: LEDs transition at durations, not tied to day/night
+ *    ALWAYS010: tba. LEDs transition at durations, not tied to day/night input
+ *    RANDOM010: tba. LEDs transition at random duration, no day/night input
  *
  * - Transition configuration...
  *    Delay seconds before transitions.
  *    Duty cycle Transition duration in seconds.
  *
- * - Duty Cycle for on/off / Day and Night in configuration.
+ * - Duty Cycle for on/off or Day/Night in configuration.
  *
  * - Over current protection. Audio alarm sounder.
  * - diagnostics via Arduino Serial Monitor. 
@@ -61,111 +55,86 @@ unsigned char sCBUSNAME[7] { 'L', 'I', 'G', 'H', 'T', 'S', ' ' };
  * 
  * - CBUS event used as day/night trigger.
  * 
- * - configuration is in CBUS NVs
-*/
-
-
-/*--------------------------- target ------------------------------------------
+ * - configuration is in 60 CBUS NVs
+ *
+ *-------------------------------- target -------------------------------------
  *  
- *  Framework : Arduino 1.8.13 (on Ubuntu 20)  
- *  TargetPCB : CANlights (see KiCad files) has MCU board as a daughter board.
- *  MCU board : 'MEGA 2560 PRO' (Arduino Mega should work, on breadboard)
+ *  Framework : Arduino 1.8.13 (on Ubuntu 20)
+ *  PCB       : CANlights revB - has MCU board as daughter board
+ *  MCU board : 'MEGA 2560 PRO' (Arduino Mega2560 should work, on breadboard)
  *  Processor : ATmega2560 
  *    Clock   : 16 MHz
- *    Flash   : 25.4 kB of 256 KB (but 8 KB is bootloader)
- *    SRAM    : 2.2 kB of 8 kB used.
- *    EEPROM  : 0.1 kB of 4 kB used.
- *    Timer   : 6 of 6 used.   * 100% *
- *    PWM chan: 10 of 16 used. * 100% as 6 chans unusable *
+ *    Flash   : 25.7 KB of 256 KB (note 8 KB is reserved for bootloader)
+ *    SRAM    : 2.4 KB of 8 KB used.
+ *    EEPROM  : 0.1 KB of 4 KB used.
+ *    Timer   : 6 of 6 used.  (100%)
+ *    PWM chan: 10 of 16 used (100% as 2 timers[6 comparator] otherwise used)
  *    ADC chan: 2 of 16 ADC used.
- *    IO pins : 29 of 70 used
- *  USB Serial: CHG340G @ 12 MHz
- *  CAN contrl: MCP2515 SPI bus @ 8MHz.
-*/
-
-
-/*---------------------------- History ----------------------------------------
+ *    IO pins : 29 of 70 used.
+ *  USB Serial: CHG340G @ 12 MHz.
+ *  CAN ctrl  : MCP2515 on hardware SPI bus (see const SPI_MHz).
+ *
+ *------------------------------- History -------------------------------------
  *
  *  4-Jan-2021 Dave Harris (DH) Lights_Control_1 Project started
  *  9-Jan-2021 DH, v0.01  breadboard first test
  * 23-Jan-2021 DH, v0.02  add channel Modes
  *  2-Feb-2021 DH, v0.03  add TimerOne lib and 1 ms ISR
  *  4-Feb-2021 DH, v1.00  released on Lights_Control_1 PCB
- *  5-Feb-2021 DH, v1.01  correct over Amp code. Sense RC 0.1uF to 1.0uF
+ *  5-Feb-2021 DH, v1.01  correct over Amp code. Sense cap 0.1uF to 1.0uF
  * 11-Feb-2021 DH, v1.02  efficiency and tidy up changes
- * 23-Feb-2021 DH, v1.03  Bug fix, DC wrong after over Amp condition
+ * 23-Feb-2021 DH, v1.03  fix, DC wrong after over Amp condition.
  * 28-Feb-2021 DH, Lights_Control_1 frozen and code copied to CANlights.
  *          CANlights.ino  Versioning now in CBUS style.
- *  1-Mar-2021 DH, v0a b1 add CBUS library and MCP2515 to SPI bus
- * 11-Apr-2020 DH, v0a b2 CANlights basic working
+ *  1-Mar-2021 DH, v0a beta1 add CBUS library and MCP2515 to SPI bus
+ * 11-Apr-2020 DH, v0a beta2 CANlights basic working (a few bugs to go)
  *
-*/ 
-
-
-/*-------------------------- file includes ----------------------------------*/
+ *
+ *-------------------------- file includes ----------------------------------
+*/
 
 #include <cbusdefs.h>     /* 8r       https://github.com/MERG-DEV    */
-
 #include <CBUS2515.h>     /* 1.1.11   https://github.com/MERG-DEV    */
-
 #include <CBUSconfig.h>   /* 1.1.9    https://github.com/MERG-DEV    */
 
-
 #include "CANlights.h"    /* class and function declarations         */
-
 #include "DATADEF.h"      /* data structure definitions              */
-
 #include "PIN.h"          /* module pin definitions                  */
-
 #include "GAMMA8.h"       /* Gamma correction table                  */
-
 #include "DEFAULTNV.h"    /* factory reset NV array                  */
 
-
 #include <ACAN2515.h>     /* 2.0.6  MCP2515/25625 CAN controller     */
-
 #include <Streaming.h>    /* 6.0.8  Serial                           */
-
 #include <TimerOne.h>     /* 1.1      1 ms foreground process        */
 
-
 #include <CBUSswitch.h>   /* 1.1.7    https://github.com/MERG-DEV    */
-
 #include <CBUSLED.h>      /* 1.1.6    https://github.com/MERG-DEV    */
 
 
-
-/*---------------------------- global variables -----------------------------
- *
-*/
+/*---------------------------- global variables ------------------------------*/
 
 
-unsigned char params[21];     /* CBUS params                                 */
-
-
+unsigned char params[21];     /* CBUS params                                  */
 
 volatile var_t var[CHANQTY];  /* channel variable array. Is modified by ISR.  */
                               /* A mix of NVs, derived and tracking values    */
 
-volatile INPUT_t  input;               /* input state 0 DAY or 1 NIGHT                 */
+volatile INPUT_t  input;               /* input state 0 DAY or 1 NIGHT        */
 
-volatile bool inputChanged = true;     /* reset when actioned                          */
-  
+volatile bool inputChanged { true };   /* reset this flag when actioned       */
 
-byte testChan = 11;
+EVAL_t evCommand { EVAL_TESTEND };
 
-byte testDC = 1;
+byte testDC { 1 };
 
+bool debug { false };         /* false = quiet, true = verbose                */
+bool muteAlarm { false };     /* false = quiet, true = sounding               */
 
-bool debug = false;           /* false = quiet mode, true = verbose           */
-
-bool stopISR = false;         /* flag to disable 1 ms ISR process, if true    */
-
+bool stopISR { false };       /* flag to disable 1 ms ISR process, if true    */
 
 
-/*------------------------------- objects ------------------------------------
- *
-*/
+
+/*------------------------------- objects ----------------------------------- */
 
 
 CBUS2515 CBUS;                /* CBUS object                                  */
@@ -186,51 +155,7 @@ Power PWR;                    /* Power object                                 */
 
 
 
-void chanState()
-{
-  Serial << ' ' << sINPUT[input] << endl;
-  for( byte ch = 0; ch < CHANQTY; ch++ )
-  {
-    Serial << " ch" << ch +1 
-          << ' ' << sSTATE[var[ch].state]
-          << ' ' << sPHASE[var[ch].phase]
-          << " dc=" << var[ch].dcCur
-          << ' ' << sMODE[var[ch].mode]
-          << endl;
-  }
-}
-
-/*---------------------------------- printChanConfig() ------------------------
- * 
- * print one channel config to Serial
-*/
-
-void printChanConfig( byte ch )
-{
-  static const byte BUFSIZE { 75 };
-  
-  static char buf[BUFSIZE];
-  
-  static const char sFMT[]
-  {"ch%02u Tran=%03us Dly0=%03us Dly1=%03us dc0=%03u dc1=%03u step=%05ums %s"};
-  
-  snprintf( buf, BUFSIZE, sFMT
-     , ( ch + 1 )                       /* chan number          */
-     , var[ch].secTrans                 /* Transit seconds      */
-     , var[ch].secDelay[0]              /* Delay 0 secs         */
-     , var[ch].secDelay[1]              /* Delay 1 secs         */
-     , var[ch].dc[0]                    /* duty cycle DC0       */
-     , var[ch].dc[1]                    /* duty cycle DC1       */
-     , var[ch].msPerStep                /* derived config value */
-     , sMODE[var[ch].mode]              /* string, mode of chan */
-    );
-  Serial << buf << endl;
-}
-
-
-
-
-/*------------------------------------- loop() -------------------------------- 
+/*---------------------------------------------------- loop() ----------------- 
  * 
  * Background process.
 */
@@ -241,9 +166,9 @@ void loop()
 
   PWR.test();
 
-  if( inputChanged == true )  /* set by Event handler */
+  if( inputChanged == true )  /* flag set by Event handler  */
   {
-    inputChanged = false;     /* clear the flag       */
+    inputChanged = false;     /* clear the flag             */
     
     startNewPhase();
   }
@@ -253,128 +178,135 @@ void loop()
 
 
 
-/*-------------------------- processChannels() -----------------------------
+/*--------------------------------------------- processChan( ch ) ------
  * 
- * timer1 Interrupt Service Routine.  1 ms foreground process
- * 
- * Cycle though the channels and process them
+ * called from 1 ms foreground process. Cycle though the channels.
 */
 
-void processChannels()         /* !!! This is ISR which runs every 1 ms !!! */
-{                              /*        keep it light as possible          */
-  
-  SetPINTP_D31;                /* Scope TP on pin D31 ~= ISR run time       */
-                               /* on ATmega2560 = min 21 us to peak 87 us   */
-
-  bool transits = false;       /* lights LED_builtin if Transits are active */
-
-
-  if( stopISR == false )                  /* allow this to change DC values */
-  {                 
-    for( uint8_t ch = 0; ch < CHANQTY; ch++ )      /* loop all channels     */
-    {
-      if( var[ch].state != STEADY )                /* is state not STEADY?  */
-      {
-        var[ch].msCount++;
-        
-        if( var[ch].state == DELAY )                 /* is state DELAY?     */
-        {
-          if( var[ch].msCount > 1000 )               /* count delay seconds */
-          {
-            var[ch].msCount = 0;
-            var[ch].secCount++;
-            
-            if( var[ch].secCount > var[ch].secDelay[var[ch].phase] )
-            {
-              var[ch].state = TRANSIT;               /* end state DELAY     */
-              var[ch].secCount = 0;
-            }
-          }
-        }
-        else /* so, state must be TRANSIT */
-        {
-          transits = true;                           /* drives LED_builtin  */
-          
-          if( var[ch].msCount > var[ch].msPerStep )
-          {
-            var[ch].msCount = 0;
-            if( var[ch].dcCur == var[ch].dc[var[ch].phase] )
-            { 
-              var[ch].state = STEADY;                /* dc transit complete */
-              
-              switch( var[ch].mode )                 /* trigger a new phase */
-              {
-                case MODE_NIGHT010 :
-                  if( input == INPUT_NIGHT )
-                  {
-                    var[ch].phase = ! var[ch].phase;
-                    var[ch].state = DELAY;
-                  }
-                  break;
-  
-                case MODE_DAY010 :
-                  if( input == INPUT_DAY )
-                  {
-                    var[ch].phase = ! var[ch].phase;
-                    var[ch].state = DELAY;
-                  }
-                  break;
-  
-                case MODE_DUSK :
-                  if( var[ch].phase == 1 )
-                  {
-                    var[ch].phase = 0;
-                    var[ch].state = DELAY;                  
-                  }
-                  break;
-                  
-                case MODE_DAWN :
-                  if( var[ch].phase == 1  )
-                  {
-                    var[ch].phase = 0;
-                    var[ch].state = DELAY;                  
-                  }
-                  break;
-                  
-                case MODE_DUSKDAWN :
-                  if( var[ch].phase == 1 )
-                  {
-                    var[ch].phase = 0;
-                    var[ch].state = DELAY;
-                  }
-                  break;
-                  
-                case MODE_DAYNIGHT : 
-                  break;
-              }
-            }
-            else            /* in Transit & current DC is GT or LT target DC */
-            {
-              if( var[ch].dcCur > var[ch].dc[var[ch].phase] )   /* which? */
-              {
-                var[ch].dcCur--;                          /* GT so decrement */
-              }
-              else
-              {
-                var[ch].dcCur++;                          /* LT so increment */
-              }
-              analogWrite( PWMPIN[ch], GAMMA8[var[ch].dcCur] );    /* new dc */
-            }
-          }
-        }
-      }  /* end if state not STEADY   */
-    }  /* end for ch loop             */
-  
-    digitalWrite( LED_BUILTIN, transits );         /* show TRANSIT activity */
+void processChan( byte ch, bool & transits )
+{
+  if( var[ch].state != STATE_STEADY )   /* is state not STEADY?        */
+  {
+    var[ch].msCount++;
     
-  } /* end not stopISR   */
-  
-  ClrPINTP_D31;   /* time from pin high to low is ISR run time */
+    if( var[ch].state == STATE_DELAY )           /* is state Delay?     */
+    {
+      if( var[ch].msCount >= 1000 )              /* count delay seconds */
+      {
+        var[ch].msCount = 0;
+        var[ch].secCount++;
+        
+        if( var[ch].secCount > var[ch].secDelay[var[ch].phase] )
+        {
+          var[ch].state = STATE_TRANSIT;         /* end state Delay     */
+          var[ch].secCount = 0;
+        }
+      }
+    }
+    else /* so, state must be TRANSIT */
+    {
+      transits = true;                           /* drives LED_builtin  */
+      
+      if( var[ch].msCount > var[ch].msPerStep )
+      {
+        var[ch].msCount = 0;
+        if( var[ch].dcCur == var[ch].dc[var[ch].phase] )
+        { 
+          var[ch].state = STATE_STEADY;          /* dc transit complete */
+          
+          switch( var[ch].mode )                 /* trigger a new phase */
+          {
+            case MODE_NIGHT010 :
+              if( input == INPUT_NIGHT )
+              {
+                var[ch].phase = ! var[ch].phase;
+                var[ch].state = STATE_DELAY;
+              }
+              break;
+            case MODE_DAY010 :
+              if( input == INPUT_DAY )
+              {
+                var[ch].phase = ! var[ch].phase;
+                var[ch].state = STATE_DELAY;
+              }
+              break;
+            case MODE_DUSK :
+              if( var[ch].phase == 1 )
+              {
+                var[ch].phase = 0;
+                var[ch].state = STATE_DELAY;                  
+              }
+              break;
+            case MODE_DAWN :
+              if( var[ch].phase == 1  )
+              {
+                var[ch].phase = 0;
+                var[ch].state = STATE_DELAY;                  
+              }
+              break;
+            case MODE_DUSKDAWN :
+              if( var[ch].phase == 1 )
+              {
+                var[ch].phase = 0;
+                var[ch].state = STATE_DELAY;
+              }
+              break;  
+            case MODE_DAYNIGHT : 
+              break;
+          }
+        }
+        else          /* in Transit & current DC is GT or LT target DC */
+        {
+          if( var[ch].dcCur > var[ch].dc[var[ch].phase] )    /* which? */
+          {
+            var[ch].dcCur--;                        /* GT so decrement */
+          }
+          else
+          {
+            var[ch].dcCur++;                        /* LT so increment */
+          }
+          analogWrite( PWMPIN[ch], GAMMA8[var[ch].dcCur] );  /* new dc */
+        }
+      }
+    }
+  }
 }
 
 
 
-/*------------------------------ startNewPhase() -----------------------------
+/*--------------------------------------------- processChannels() ----------
+ * 
+ * timer1 Interrupt Service Routine.  1 ms foreground process.
+*/
+                                /* !!! This is ISR which runs every 1 ms !!! */
+void processChannels()          /*        keep it light as possible          */
+{                     
+  PINTP_D31_HIGH;               /* is ISR run time = min 21 us to peak 87 us */
+
+  bool transits { false };      /* lights LED_BUILTIN if Transits are active */
+
+  if( stopISR == false )        /* other code that changes DCs, sets it true */
+  {                 
+    for( byte ch = 0; ch < CHANQTY; ch++ )          /* loop all channels     */
+    {
+      if( ch + 1 == evCommand )     /* TEST?  ch start at 0, cmd ch starts 1 */
+      {
+        analogWrite( PWMPIN[ch], testDC );    /* test DC is either 1 or 254  */
+      }
+      else
+      if( evCommand != EVAL_SHUTDOWN ) /* SHUTDOWN is handled in eventHandler*/
+      {
+        processChan( ch, transits );
+      }
+    }
+    digitalWrite( LED_BUILTIN, transits );         /* show TRANSIT activity */
+  }
+  PINTP_D31_LOW;   /* time from pin high to low is ISR run time */
+}
+
+
+
+/*-------------------------------------------- startNewPhase() ---------------
  * 
  * The day/night input has changed, so setup new phase for each channel 
 */
@@ -388,20 +320,20 @@ void startNewPhase()
     var[ch].secCount = 0;
     var[ch].msCount = 0;
 
-    var[ch].state = TRANSIT;      /* default values, some updated by switch   */
-    var[ch].phase = 0;            /* this allows dc to transit back to dc0    */
+    var[ch].state = STATE_TRANSIT; /* default values, some updated by switch */
+    var[ch].phase = 0;             /* this allows dc to transit back to dc0  */
 
     switch( var[ch].mode )
     {
       case MODE_DAYNIGHT :        /* either input edge starts MODE_DAYNIGHT   */
-        var[ch].state = DELAY;
+        var[ch].state = STATE_DELAY;
         var[ch].phase = input;    /* phase 0 = 0 (day), phase 1 = 1 (night)   */
         break;
         
       case MODE_DUSK :            /* day to night starts dusk                 */
         if( input == INPUT_NIGHT )
         {
-          var[ch].state = DELAY;
+          var[ch].state = STATE_DELAY;
           var[ch].phase = 1;
         }
         break;
@@ -409,20 +341,20 @@ void startNewPhase()
       case MODE_DAWN :           /* night to day starts dawn                 */
         if( input == INPUT_DAY )
         {
-          var[ch].state = DELAY;
+          var[ch].state = STATE_DELAY;
           var[ch].phase = 1;
         }
         break;
         
       case MODE_DUSKDAWN :       /* either input edge starts DUSKDAWN         */
-        var[ch].state = DELAY;
+        var[ch].state = STATE_DELAY;
         var[ch].phase = 1;
         break;
         
       case MODE_NIGHT010 :       /* day to night starts NIGHT010              */
         if( input == INPUT_NIGHT )
         {
-          var[ch].state = DELAY;
+          var[ch].state = STATE_DELAY;
           var[ch].phase = 1;
         }
         break;
@@ -430,7 +362,7 @@ void startNewPhase()
       case MODE_DAY010 :         /* night to day starts DAY010                */
         if( input == INPUT_DAY )
         {
-          var[ch].state = DELAY;
+          var[ch].state = STATE_DELAY;
           var[ch].phase = 1;
         }
         break;
@@ -441,10 +373,9 @@ void startNewPhase()
 
 
 
-/*---------------------- setupChannels() -------------------------------------
+/*---------------------------------------- setupChannels() -------------------
  * 
  * preset channel variables from channel NVs and set the PWM
- *  
  * called from setup(), before timerOne is started
 */
 
@@ -452,8 +383,6 @@ void setupChannels()
 {
   for( byte ch = 0; ch < CHANQTY; ch++ )     /* loop through channels   */
   {
-    /* fetch NVs */
-    
     var[ch].dc[0]       = NV.dc( ch, 0 );
     var[ch].dc[1]       = NV.dc( ch, 1 );
     var[ch].secDelay[0] = NV.dly( ch, 0 );
@@ -462,12 +391,10 @@ void setupChannels()
     var[ch].mode        = (MODE_t) NV.mode( ch );
     if( var[ch].mode >= MODEQTY )
     {
-      Serial << F("!bad mode ") << var[ch].mode << " Reset ch" << ch+1 << endl;
+      Serial << "!bad mode " << var[ch].mode << " Reset ch" << ch+1 << endl;
       var[ch].mode = MODE_DAYNIGHT;
     }
-
     /* calculate ms per step rate of change value */
-    
     if( var[ch].secTrans == 0 )   /* zero seconds transit is special          */
     { 
       var[ch].msPerStep = 1;      /* dc transits rapidly to target duty cycle */
@@ -482,30 +409,25 @@ void setupChannels()
         var[ch].dc[0] = 100;
         var[ch].dc[1] = 150;
         
-        Serial << endl << F("!DC diff < 4 Reset ch") << ch +1 << endl;
+        Serial << endl << "!DC diff < 4 Reset ch" << ch +1 << endl;
       }
       else /* calculate */
       {
         var[ch].msPerStep = ( var[ch].secTrans * 1000UL ) / diff;
       }
     }
-    
-    var[ch].dcCur = MAXDC / 2;  /* */
-    var[ch].state = STEADY;     /* */
-    var[ch].phase = 0;          /* */
+    var[ch].dcCur = MAXDC / 2;        /* */
+    var[ch].state = STATE_STEADY;     /* */
+    var[ch].phase = 0;                /* */
 
     analogWrite( PWMPIN[ch], var[ch].dcCur );
-    
-    printChanConfig( ch );
-  } 
-  //delay( 500 );
-  
+  }
   startNewPhase();
 }
 
 
 
-/*------------------------------------- setup() -------------------------------
+/*--------------------------------------------------- setup() -----------------
  *
  * runs at power on and reset
 */
@@ -515,10 +437,7 @@ void setup()
   setPins();
 
   Serial.begin( 115200 );
-
   SerialMon.about();
-
-  /* set CBUSconf layout parameters */
   
   config.EE_NVS_START = 10;
   config.EE_NUM_NVS = NVQTY;
@@ -526,13 +445,10 @@ void setup()
   config.EE_MAX_EVENTS = EVENTSQTY;
   config.EE_NUM_EVS = 1;
   config.EE_BYTES_PER_EVENT = ( config.EE_NUM_EVS + 4 );
-
-
-  /* initialise and load CBUSconfuration */
   
   config.setEEPROMtype( EEPROM_INTERNAL );
   
-  config.begin();                     /* start CBUS config                   */
+  config.begin();
 
   params[0] = 20;                     /* Number of parameters                */
   params[1] = MANU_MERG;              /* Manufacturer ID                     */
@@ -542,7 +458,7 @@ void setup()
   params[5] = config.EE_NUM_EVS;      /* number event variables per event    */
   params[6] = config.EE_NUM_NVS;      /* number of Node Variables            */
   params[7] = VERSIONMAJOR;           /* major version                       */
-  params[8] = 7;                      /* Node Flags  PF_COMBI & PF_FLiM      */
+  params[8] = 0x07;                   /* Node Flags  PF_COMBI & PF_FLiM      */
   params[9] = 0x32;                   /* processor ID                        */
   params[10] = PB_CAN;                /* interface protocol - CAN / Ethernet */
   params[11] = 0x00;                  /* download load address               */
@@ -556,16 +472,13 @@ void setup()
   params[19] = CPUM_ATMEL;            /* Manufacturer code                   */
   params[20] = VERSIONBETA;           /* 0 is released, >0 is beta version   */
 
-  Serial << F(" param 8(flags)=") << params[8] << endl;
-  
+  Serial << SPI_MHz << " MHz SPI.  Param[8]flags=" << params[8] << endl;
+    
   CBUS.setParams( params );           /* assign params to CBUS               */
   CBUS.setName( sCBUSNAME );          /* assign module name to CBUS          */
-
-  /* initialise CBUS LEDs  */
   
   CBUSgreen.setPin( PINLEDGRN );
   CBUSyellow.setPin( PINLEDYEL );
-
 
   CBUSmode_PB.setPin( PINSW0, LOW );          /* initialise CBUS mode switch */
 
@@ -575,78 +488,66 @@ void setup()
 
   if( CBUSmode_PB.isPressed() && ! config.FLiM ) 
   {
-    Serial << F(" switch was pressed at startup in SLiM mode") << endl;
+    Serial << " switch was pressed at startup in SLiM mode" << endl;
     
     config.resetModule( CBUSgreen, CBUSyellow, CBUSmode_PB );
   }
 
-
-  /* register CBUS event handlers */
-
   CBUS.setEventHandler( eventHandler );       /* call on every learned event  */
 
   CBUS.setFrameHandler( frameHandler );       /* call on every CAN frame.     */
-
-
-  /* set LEDs and switch */
 
   CBUS.setLEDs( CBUSgreen, CBUSyellow );
   
   CBUS.setSwitch( CBUSmode_PB );
 
   CBUS.indicateMode( config.FLiM );         /* set CBUS LEDs for current mode */
-
-
-  /* CBUSconfure and start CAN bus and CBUS message processing  */
   
   CBUS.setNumBuffers( 4 );           /* more buffers, more memory, fewer less */
   
-  CBUS.setOscFreq( SPI_FREQ );                  /* SPI clock frequency        */
+  CBUS.setOscFreq( SPI_MHz * 1000000 );         /* SPI clock frequency        */
   CBUS.setPins( PINSPI_SS, PINSPI_INT );        /* SPI pins, bar defaults     */
   
-  CBUS.begin();
-
-
+  while( CBUS.begin() == false )
+  {
+    digitalWrite( PINLEDRED, HIGH );
+    PWR.alarm( 250 );
+  }
+  digitalWrite( PINLEDRED, LOW );
+  
   setupChannels();
 
-  analogReference( INTERNAL1V1 );   /* most sensitive on MEGA, 1.075 mV/unit */
+  analogReference( INTERNAL1V1 );               /* MEGA unique, 1.075 mV/bit  */
   
-  Timer1.initialize( 1000 );                   /* ISR to run @ 1000 us, 1 ms */
-  Timer1.attachInterrupt( processChannels );   /* Foreground process         */
+  Timer1.initialize( 1000 );                    /* ISR to run @ 1000 us, 1 ms */
+  Timer1.attachInterrupt( processChannels );    /* Foreground process ISR     */
 
-
-  SerialMon.state();
+  SerialMon.cbusState();
   SerialMon.freeSRAM();
   SerialMon.variables();
   SerialMon.storedEvents();
-  SerialMon.menu();
-  
-  Serial << " input=" << sINPUT[input] << endl;
-  
-  sendMsg( 1, EN_POWER );
+    
+  sendCBUSmessage( 1, EN_POWER );
 }
 
 
 
-/*-------------------- Power::checkSerialSend() ---------------------------
+/*--------------------------------------- Power::checkSerialSend() -----------
  * 
  * check and action serial input, spacebar toggles mute
 */
 
 void Power::checkSerialSend()
 {
-  if( Serial.available() > 0 ) 
+  if( Serial.available() > 0  &&  Serial.read() == ' ' )
   {
-    if( Serial.read() == ' ' )  /* spacebar toggle mute */
-    {
       muteAlarm = ! muteAlarm;
-    }
   }  
 }
 
 
 
-/*-------------------------- Power::alarm() ---------------------------------
+/*------------------------------------------ Power::alarm() -----------------
  * 
  * Sound Audio Warning Device for n milli seconds.
  * Timers are all used up, but this can be done OK on a loop.
@@ -667,20 +568,17 @@ void Power::alarm( uint16_t duration_ms )
       delayMicroseconds( 121 );          /* 121 allows for overheads in loop  */
     }
   }
-  else
-    delay( duration_ms );
+  else delay( duration_ms );
 }
 
 
 
-/*-------------------------- Power::isUnderVolt() ----------------------
+/*---------------------------------------- Power::isUnderVolt() ----------
  * 
- * If blue LED is not lit, the 12 V line failed or PolyFuse tripped
- * 12 V feeds onto Blue LED, Vf ~ 2.8 V. 
- * ADC ref is 1.1 V. If blue < 1.09 V (1022) then underVolt condition.
- * 
- * return true if under Volt and false if 12 V is OK
+ * If blue LED is not lit, the 12 V line failed or PolyFuse tripped.
+ * 12 V feeds onto Blue LED, Vf ~ 2.8 V. ADC ref is 1.1 V.
 */
+
 bool Power::isUnderVolt()
 {
   return ( analogRead( PINBLUE ) < 1022 ); 
@@ -688,17 +586,15 @@ bool Power::isUnderVolt()
 
 
 
-/*------------------------------ Power::isOverAmp() -------------------------
+/*----------------------------------------- Power::isOverAmp() --------------
  * 
- * read Volts on sense resistor to measure Amps.
- * 
+ * Read Volts on sense resistor to measure Amps.
  * return true if over Amp and false if Amps OK
 */
 
 bool Power::isOverAmp()
 {
   amps = analogRead( PINSENSE );
-  
   return ( amps > MAXAMPADCREAD );
 }
 
@@ -712,97 +608,67 @@ bool Power::isOverAmp()
 
 void Power::printAmps()
 {
-  Serial << " " << ( amps * AMPCALIBRATE ) << "mA" << endl;
+  Serial << ' ' << ( amps * AMPCALIBRATE ) << "mA" << endl;
 }
 
 
-/*----------------------------- Power::test() ------------------------------
+/*--------------------------------------------- Power::test() --------------
  * 
- * If over current then alarm and reduce duty cycles.
- * If under Volt (poly fuse?) then just alarm.
+ * If under Volt (poly fuse?) or over current then alarm & reduce duty cycles.
 */
 
 void Power::test()
-{
-  byte shiftR = 1;               /* shiftR  1 is divide by 2           */
-
-  while( isOverAmp() == true )      /* are we over Amps?                  */
+{  
+  if( isOverAmp() == true || isUnderVolt() == true )
   {
     stopISR = true;                 /* stop ISR as this code overides DC  */
-
-    sendMsg( 1, EN_OVERAMP );
-      
     digitalWrite( PINLEDRED, HIGH );
-    Serial << F("! OverAmp");
-    printAmps();
-
-    if( shiftR < 8 )
-    {
-      overrideDC( shiftR++ );       /* cut DC by half     */          
-    }
-    alarm( 250 );                   /* constant beep      */
-  }
-
-  if( shiftR > 1 )
-  {
-    Serial << F(". DC recover") << endl;
-    restoreDC();
-    sendMsg( 0, EN_OVERAMP );
-  }
-  
-  stopISR = false;  /* restart ISR processing LED channels */
-
-  while( isUnderVolt() == true )
-  {
-    sendMsg( 1, EN_UNDERVOLT );
+    sendCBUSmessage( 1, EN_ALARM );
     
-    digitalWrite( PINLEDRED, HIGH );
-    Serial << F("! UnderVolt") << endl;
+    turnOffPWMs();      
 
-    while( isUnderVolt() == true )
+    Serial << "! OverAmp or UnderVolt";
+    printAmps();
+    do
     {
-      alarm( 250 );  /*  beep pause beep pause beep...  */
-      delay( 250 );
+      alarm( 250 ); /* sound AWD for n milli secs */
     }
-    sendMsg( 0, EN_UNDERVOLT );
+    while( isOverAmp() == true || isUnderVolt() == true );
+    
+    restorePWMs();
+    
+    sendCBUSmessage( 0, EN_ALARM );
+    digitalWrite( PINLEDRED, LOW );
+    stopISR = false;
   }
-  
-  muteAlarm = false;
-  
-  digitalWrite( PINLEDRED, LOW );
 }
 
 
 
-/*----------------------------- Power::overrideDC() --------------------------
+/*----------------------------- turnOffPWMs() --------------------------
  * 
- * In case of fault, set channel duty cycle to lower value
- * 
+ * set all channel duty cycles to zero value
 */
 
-void Power::overrideDC( byte shiftR )
+void turnOffPWMs()
 {
+  Serial << "! all PWM off" << endl;
   for( byte ch = 0; ch < CHANQTY; ch++ )
   {
-    byte newDC = var[ch].dcCur >> shiftR;     /* divide DC down       */
-    
-    analogWrite( PWMPIN[ch], GAMMA8[newDC] );
-    
-    Serial << " ch" << ch << '=' << newDC;
+    analogWrite( PWMPIN[ch], 0 );
   }
-  Serial << endl;
 }
 
 
 
-/*------------------------------- Power::restoreDC() -------------------------
+/*------------------------------ restorePWMs() -------------------------
  * 
- * restore running dc
- * 
+ * restore all running duty cycles
 */
 
-void Power::restoreDC()
+void restorePWMs()
 {
+  Serial << ". all PWM restored" << endl;
   for( byte ch = 0; ch < CHANQTY; ch++ )
   {
     analogWrite( PWMPIN[ch], GAMMA8[var[ch].dcCur] );
@@ -818,112 +684,131 @@ void Power::restoreDC()
 
 byte GetNV::tran( byte chan )
 {
-  return config.readNV( NVmap[TRAN][0] + chan );
+  return config.readNV( NVmap[NV_TRAN][0] + chan );
 }
 
 
 
 /*-------------------------------- GetNV::dly() ----------------------------
  * 
- * return delay NV for chan & index     NV.dly( 0, 0 ) is chan 0 Dly0
- *                                      NV.dly( 8, 1 ) is chan 8 Dly1
+ * return delay NV for chan & index     NV.dly( 8, 1 ) is chan 8 Dly1
 */
 
 byte GetNV::dly( byte chan, bool indx )
 {
-  return config.readNV( NVmap[DLY][indx] + chan );
+  return config.readNV( NVmap[NV_DLY][indx] + chan );
 }
 
 
 
-/*------------------------- GetNV::dc() -----------------------------------
+/*------------------------------------ GetNV::dc() ------------------------
  *
- * return duty cycle NV for chan & index   NV.dc( 0, 0 ) is chan 0 DC0 
- *                                         NV.dc( 9, 1 ) is chan 9 DC1
+ * return duty cycle NV for chan & index      NV.dc( 9, 1 ) is chan 9 DC1
 */
+
 byte GetNV::dc( byte chan, bool indx )
 {
-  return config.readNV( NVmap[DC][indx] + chan );
+  return config.readNV( NVmap[NV_DC][indx] + chan );
 }
 
 
 
-/*------------------------- GetNV::mode() -----------------------------------
+/*---------------------------------- GetNV::mode() --------------------------
  *
  * return mode NV for chan                 NV.mode( 0 ) is chan 0 Mode
 */
 
 byte GetNV::mode( byte chan )
 {
-  return config.readNV( NVmap[MODE][0] + chan );
+  return config.readNV( NVmap[NV_MODE][0] + chan );
 }
 
 
 
-/*------------------------------ eventHandler() -------------------------------
+/*---------------------------------------- eventHandler() -------------------
  * 
- * event processing function called from CBUS library when a learned event 
- * is received.
+ * event process function called from CBUS library when learned event is rx
 */
 
 void eventHandler( byte index, CANFrame *msg ) 
 {
-  byte evVal = config.getEventEVval( index, 1 );
+  EVAL_t  evVal = (EVAL_t) config.getEventEVval( index, 1 );
   
   byte opc = msg->data[0];
+  bool evOn = ( opc == OPC_ASON || opc == OPC_ACON );
   
-  bool onOff = ( opc == OPC_ASON || opc == OPC_ACON );
-
-  Serial << "< rx Event opc0x" << _HEX(opc) << " on/off=" << onOff 
-         << " evVal=" << evVal << ' ';
-      
-  if( evVal >= SIZE_EVAL )
+  Serial << "> rx Event opc=0x" << _HEX(opc) << " on/off=" << evOn 
+                  << " evVal=" << evVal << ' ';
+  switch( evVal )
   {
-    Serial << "!evVal unknown";
-  }
-  else
-  {
-    if( evVal == EVAL_MODE_DAYNIGHT )
-    {
-      Serial << sINPUT[onOff];
-      inputChanged = ( input != (INPUT_t) onOff );
-      if( input != (INPUT_t) onOff )
+    case EVAL_DAYNIGHT:
+      Serial << sINPUT[evOn];
+      if( input != (INPUT_t) evOn )
       {
-        input = (INPUT_t) onOff;
-        inputChanged = true;        /* trigger for loop() to change phase */
-        Serial << " set";
+        input = (INPUT_t) evOn;
+        inputChanged = true;        /* flag for loop() to change phases */
+      }
+      else Serial << " ignored";
+      break;
+      
+    case EVAL_SHUTDOWN:
+      Serial << "Shutdown";
+      if( evCommand == EVAL_SHUTDOWN )
+      {
+        Serial << " ignored";
       }
       else
       {
-        Serial << " unchanged";
+        if( evOn == true )
+        {
+          evCommand = EVAL_SHUTDOWN;
+          turnOffPWMs();
+        }
+        else
+        {
+            evCommand = EVAL_DAYNIGHT;
+            restorePWMs();
+        }
       }
-    }
-    else /* all the evVal of TESTCH? and TESTOFF */
-    { 
-      testDC = ( onOff ? 1 : 254 ); 
-      testChan = evVal;
-      Serial << sEVAL[evVal] ;
-    }
+      break;
+      
+    case EVAL_TESTEND:
+      if( evCommand >= EVAL_TESTCH1 && evCommand <= EVAL_TESTCH10 )
+      {
+        Serial << "TestEnd ch" << evCommand;
+        analogWrite( PWMPIN[(evCommand -1)], var[(evCommand -1)].dcCur );
+        evCommand = EVAL_DAYNIGHT;
+      }
+      else Serial << "TestEnd ignored";
+      break;
+      
+    default:
+      if( evVal <= EVAL_TESTCH10 ) /* then it is TestCh1 to TestCh10 */
+      {
+        testDC = ( evOn ? 254 : 1 ); 
+        evCommand = evVal;
+        Serial << sEVAL[evVal] << " dc=" << testDC;        
+      }
+      else Serial << "! unknow evVal";
   }
-  Serial << endl << endl;
+  Serial << endl;
 }
 
 
 
 /*--------------------------------- frameHandler() ----------------------------
  * 
- * user-defined CBUS frame processing function
- * called from the CBUS library for every CAN frame received
+ * CBUS frame processing called from the CBUS library for every CAN frame rx
 */
 
 void frameHandler( CANFrame *msg ) 
 {
-  if( debug == true )
+  if( debug == true )     /* set/cleared by Serial monitor command */
   {
-    Serial << "< rx frame id" << (msg->id & 0x7f) << " len" << msg->len;
+    Serial << "> rx frame id" << (msg->id & 0x7f) << " len" << msg->len;
     for( byte i = 0; i < msg->len; i++ ) 
     {
-      Serial << " 0x" << _HEX( msg->data[i] );
+      Serial << ' ' << _HEX( msg->data[i] );
     }
     Serial << endl;
   }
@@ -931,40 +816,29 @@ void frameHandler( CANFrame *msg )
 
 
 
-/*---------------------------- sendMsg() -------------------------------------
+/*------------------------------------- sendCBUSmessage() -------------------
  * 
  * Send CBUS message ACON / ACOF and EN
 */
 
-void sendMsg( bool onOff, uint16_t en )
+void sendCBUSmessage( bool onOff, uint16_t en )
 {
-  CANFrame msg;   /* create and initialise a message object */
-  
-  msg.len = 5;    /* size of the data bytes  */
-  
-  msg.data[0] = ( onOff ? OPC_ACON : OPC_ACOF );
-
-  uint16_t nn = config.nodeNum;
-  
-  msg.data[1] = highByte( nn );
-  msg.data[2] = lowByte( nn );
-
-  msg.data[3] = highByte( en );
-  msg.data[4] = lowByte( en );
-  
-  if( ! CBUS.sendMessage( &msg ) )
+  if( config.FLiM == true )
   {
-    Serial << endl << F("! failed");
-  }
-  Serial << "> tx " << (onOff ? "ACON" : "ACOF") << " n" << nn << " e" << en;
-
-  if( en >= SIZE_EN )
-  {
-    Serial << F("!unknown") << endl; 
-  }
-  else
-  {
-    Serial << ' ' << sEN[en] << endl;
+    CANFrame msg;   /* create and initialise a message object */
+    msg.len = 5;
+    msg.data[0] = ( onOff ? OPC_ACON : OPC_ACOF );
+    msg.data[1] = highByte( config.nodeNum );
+    msg.data[2] = lowByte( config.nodeNum );
+    msg.data[3] = highByte( en );
+    msg.data[4] = lowByte( en );
+    
+    if( ! CBUS.sendMessage( &msg ) )
+    {
+      Serial << endl << "!Failed";
+    }
+    Serial << "< tx AC" << (onOff?"ON":"OF") << " n" << config.nodeNum << " e"
+      << en << ( ( en >= SIZE_EN ) ? "!unknown" : sEN[en] ) << endl << endl;
   }
 }
 
@@ -977,22 +851,24 @@ void sendMsg( bool onOff, uint16_t en )
 
 void SerMon::about() 
 {
-  Serial << endl << endl << sMODTITLE << "  v" << VERSIONMAJOR << VERSIONMINOR
-    << ( VERSIONBETA ? " beta " : " " ) << VERSIONBETA
-    << endl << sCBUSTITLE << endl << endl;
+  Serial << endl<< endl << sMODTITLE << "  v" << VERSIONMAJOR << VERSIONMINOR
+  << ( VERSIONBETA ? " beta ":" " ) << VERSIONBETA << endl << sCBUSTITLE << endl
+  << " menu c=bus, e=ev, v=var, m=mem, @=Amp, t=tx, /=debug, *=mute, RN=RstNv"
+  << endl << endl;
 }
 
 
 
 /*----------------------------------- SerMon::state() ---------------------------
  *
- * print module state - SLiM/FLiM, CANID & NN
+ * print module CBUS state - SLiM/FLiM, CANID & NN
 */
 
-void SerMon::state()
+void SerMon::cbusState()
 {
-  Serial << endl << F(" CBUS ") << ( config.FLiM ? "FLiM" : "SLiM" )
-     << F(" CANID=") << config.CANID << F(" NN=") << config.nodeNum << endl;
+  Serial << endl << " CBUS " << ( config.FLiM ? "FLiM":"SLiM" )
+  << " CANID=" << config.CANID << " NN=" << config.nodeNum << endl << ' ';
+  CBUS.printStatus();
 }
 
 
@@ -1004,42 +880,26 @@ void SerMon::state()
 
 void SerMon::variables()
 {
-  static const byte BUFSIZE { 11 };
-  
-  static char buf[BUFSIZE];
-  
-  byte nv = 1;
+  const byte BUFSIZE { 72 };
+  char buf[BUFSIZE];
 
-  Serial << endl << F(" NVs   ch  1        2        3        4        5      ")
-                 << F("  6        7        8        9       10") << endl;
+  char fmt[BUFSIZE]
+    = " %2d  %3ds %5dms  %3ds  %3ds  %3d  %3d  %s  %d   %s  %3d  %3ds";
 
-  for( byte r = 0; r < 6; r++)
+  Serial << endl << " Vars.  Input=" << sINPUT[input] << " evCmd=" <<
+   sEVAL[evCommand] << endl <<
+  " ch Trans perStep  Dly0  Dly1  DC0  DC1  mode    phase state dcCur count"
+   << endl;
+  for( byte ch = 0; ch < CHANQTY; ch++ )
   {
-    Serial << sNVGROUP[r];
-      
-    for( byte ch = 0; ch < CHANQTY; ch++ )
-    {
-      byte v = config.readNV( nv++ );
-      
-      if( r == 5 )
-      {
-        if( v >= MODEQTY )
-        {
-          Serial << F(" !unknown mode");
-        }
-        else 
-        {
-          Serial << sMODE[v]; 
-        }
-      }
-      else /* r = 0 to 4 */
-      {
-        snprintf( buf, BUFSIZE, "   %03d   ", v );
-        Serial << buf;
-      }
-    }
-    Serial << endl;
+    snprintf( buf, BUFSIZE, fmt,
+      ch +1, var[ch].secTrans, var[ch].msPerStep, var[ch].secDelay[0],
+      var[ch].secDelay[1], var[ch].dc[0], var[ch].dc[1], sMODE[var[ch].mode],
+      var[ch].phase, sSTATE[var[ch].state], var[ch].dcCur, var[ch].secCount
+      );
+    Serial << buf << endl;
   }
+  Serial << endl;
 }
 
 
@@ -1047,20 +907,17 @@ void SerMon::variables()
 /*----------------------------- resetNodeVariables() --------------------------
 *
 * reset Node Variables to factory test config.
-*
 */
 
 void resetNodeVariables()
 {
-  Serial << "reset factory test config";
-  
   for( byte nv = 0; nv < NVQTY; nv++ )
   {
     config.writeNV( nv + 1, DEFAULTNV[nv] );
   }
   setupChannels();
   
-  Serial << F(" Now, in the FCU, do Node>ReadNVs and save.") << endl;
+  Serial << " Reset NVs. Now, in the FCU, do Node>ReadNVs and save." << endl;
 }
 
 
@@ -1072,31 +929,29 @@ void resetNodeVariables()
 
 void SerMon::storedEvents()
 {
-  Serial << endl <<" Stored Events"<< endl;
-
-  byte count = 0;
+  Serial << " Stored Events" << endl;
+  byte count { 0 };
   
-  for( byte j = 0; j < config.EE_MAX_EVENTS; j++ )  /* for each stored event */
+  for( byte j = 0; j < config.EE_MAX_EVENTS; j++ )   /* for each stored event */
   {
-    if( config.getEvTableEntry( j ) != 0 ) 
+    if( config.getEvTableEntry( j ) != 0 )           /* is ev entry valid?    */
     {
       count++;
-
-      byte v[5];
+      byte v[config.EE_BYTES_PER_EVENT];
 
       for( byte e = 0; e < ( config.EE_NUM_EVS + 4 ); e++ ) /* for each event*/
       {
         v[e] = config.readEEPROM(
               config.EE_EVENTS_START + ( j * config.EE_BYTES_PER_EVENT ) + e );
       };
-      
-      Serial << " ev" << j
-          << " nn=" << ( v[0] * 256 ) + v[1]
-          << " en=" << ( v[2] * 256 ) + v[3]
-          << " eVal=" << config.getEventEVval( j, 1 ) << endl;
+      byte eval = config.getEventEVval( j, 1 );
+
+      Serial << ' ' << j << " n" << ( v[0] * 256 ) + v[1]
+        << " e" << ( v[2] * 256 ) + v[3] << " eVal=" << eval << ' '
+        << ( ( eval >= SIZE_EVAL ) ? "unknown" : sEVAL[eval] ) << endl;   
     }
   }
-  Serial << ' ' << count << '/' << config.EE_MAX_EVENTS << endl;
+  Serial << "   " << count << '/' << config.EE_MAX_EVENTS << endl << endl;
 }
 
 
@@ -1108,21 +963,7 @@ void SerMon::storedEvents()
 
 void SerMon::freeSRAM()
 {
-  Serial << endl << F(" freeSRAM=") << config.freeSRAM() << endl;
-}
-
-
-
-/*------------------------------ SerMon::menu() ---------------------------
- *
- * print menu for serial commands
-*/
-
-void SerMon::menu()
-{
-  Serial << endl <<
-  F(" menu: c=bus, e=ev, v=var, m=mem, *=Amp, t=tx, +-=debug, RN=RstNv, ?=about")
-   << endl << endl;
+  Serial << endl << " freeSRAM " << config.freeSRAM() << endl;
 }
 
 
@@ -1138,61 +979,49 @@ void SerMon::processinput()
   {
     switch( Serial.read() )   
     {
-      case '*':
-        PWR.printAmps();
-        break;
-        
-      case 'R':           // Reset Node variables. R followed by N
+      case 'R':                 /* Reset Node variables. R followed by N */
         while( ! Serial.available() ){};
         if( Serial.read() == 'N' )
         {
           resetNodeVariables();
         }
         break;
-
-      case 'c':           // CBUS node status
-        SerialMon.state();
+      case '@':           /* estimate LED Amps                          */
+        PWR.printAmps();
         break;
-
-      case 'e':           // stored learned Event data table
+      case 'c':           /* CBUS status                                */
+        SerialMon.cbusState();
+        break;
+      case 'e':           /* stored learned Event data table            */
         SerialMon.storedEvents();
         break;
-
-      case 'v':           // Variables table
+      case 'v':           /* Variables table                            */
         SerialMon.variables();
         break;
- 
-      case 'y':           // reset CAN bus & CBUS processing      
+      case 'y':           /* reset CAN bus & CBUS processing            */     
         CBUS.reset();
         break;
-
-      case 'm':           // free SRAM memory      
+      case 'm':           /* free SRAM memory                           */
         SerialMon.freeSRAM();
         break;
-
-      case 's':
-        chanState();
+      case 't':           /* send test message ACOF                     */
+        sendCBUSmessage( 0, EN_TESTMSG );
         break;
-
-      case 't':           // send test message ACOF
-        sendMsg( 0, EN_TESTMSG );
+      case 'T':           /* send test message ACON                     */
+        sendCBUSmessage( 1, EN_TESTMSG );
         break;
-      case 'T':           // send test message ACON
-        sendMsg( 1, EN_TESTMSG );
+      case '/':           /* debug toggle                               */
+        debug = ! debug;
+        Serial << " debug" << debug << endl;
         break;
-        
-      case '-':           // debug off
-        debug = false;
+      case '*':
+        muteAlarm = ! muteAlarm;
+        Serial << " muteAlarm" << muteAlarm << endl;
         break;
-      case '+':           // debug on = verbose Serial output
-        debug = true;
-        break;
-        
-      case '?':           // about
+      case '?':           /* about                                      */
         SerialMon.about();
-        break;
-        
-      default:            // unknown command
+        break; 
+      default:            /* all unhandled input chars.. Do nothing     */  
         break;
     }
   }
@@ -1201,7 +1030,6 @@ void SerMon::processinput()
 
 
 /*------------------------------ setPins() ------------------------------------
- * 
  * setup() calls this
 */
 
@@ -1225,22 +1053,21 @@ void setPins()
   pinMode( PINENCPHA, INPUT );        /* Rotary encoder phase A               */
   pinMode( PINENCPHB, INPUT );        /* Rotary encoder phase B               */
   pinMode( PINENCSW,  INPUT );        /* Rotary encoder switch via            */
-  
-  pinMode( PINAWDSIG, OUTPUT );       /* AudioWarningDevice: Piezo buzzer     */
 
+  pinMode( PINAWDSIG, OUTPUT );       /* AudioWarningDevice: Piezo buzzer     */
   PWR.alarm( 250 );                   /* test sounder for 0.25 s              */
   
   pinMode( PINTP_D30, OUTPUT );       /*Test Point: Scope measure TBA         */
-  SetPINTP_D30;                       /* macro fast pin method. See PIN.h     */
-  ClrPINTP_D30;
+  PINTP_D30_HIGH;                     /* macro fast pin method. See PIN.h     */
+  PINTP_D30_LOW;
   
   pinMode( PINTP_D31, OUTPUT );       /*Test Point: measure ISR duration      */
-  SetPINTP_D31;
-  ClrPINTP_D31;                       /* macro fast pin method. See PIN.h     */
+  PINTP_D31_HIGH;
+  PINTP_D31_LOW;                      /* macro fast pin method. See PIN.h     */
 
-  for( byte c = 0; c < CHANQTY; c++ ) /* loop all PWM channels                */
+  for( byte ch = 0; ch < CHANQTY; ch++ ) /* loop all PWM channels             */
   {
-    pinMode( PWMPIN[c], OUTPUT );
+    pinMode( PWMPIN[ch], OUTPUT );
   }
 
   digitalWrite( PINLEDRED, 0 );       /* all LEDs off, after 0.25s (bar blue) */
@@ -1250,7 +1077,5 @@ void setPins()
 }
 
 
-
-/*
- ------------------ CANlights_1.ino  EoF ------------------------------------
+/*----------------- CANlights_1.ino  EoF -----------------------------------
 */

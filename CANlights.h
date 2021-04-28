@@ -25,7 +25,6 @@ class Power
 {
   public:
  
-    void checkSerialSend();         /* check and action serial input          */
     void alarm( uint16_t );         /* Sound AWD for milli second.            */
     bool isUnderVolt();             /* 12 V line failed / PolyFuse tripped    */
     bool isOverAmp();               /* read Volts on sense resistor as Amps   */
@@ -93,8 +92,7 @@ class SerMon
     void cbusState();
     void variables();
     void storedEvents();
-    void freeSRAM();
-    void processinput();
+    void processKeyBoard();
     
 }; /* end of class SerMon */
 
@@ -115,13 +113,13 @@ void eventHandler( byte, CANFrame * );
 
 void frameHandler( CANFrame * ); 
 
-void setPins();
-
 void setupChannels();
 
 void sendCBUSmessage( bool, uint16_t );
 
 void resetNodeVariables();
+
+extern void setPins();
 
 
 

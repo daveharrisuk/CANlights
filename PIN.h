@@ -15,6 +15,7 @@
 #ifndef PIN_H__  /* include guard */
 #define PIN_H__
 
+#include <Arduino.h>
 
 /* Define the pins used
  * ---------------------
@@ -51,6 +52,8 @@
 *  
  * Array of PWM pins
 */
+const byte CHANQTY { 10 };   /* qty of PWM channels used for light strings */
+
 const byte PWMPIN[CHANQTY]  { 3, 5, 6, 7, 8, 9, 10, 44, 45, 46 };
 
 
@@ -58,7 +61,7 @@ const byte PWMPIN[CHANQTY]  { 3, 5, 6, 7, 8, 9, 10, 44, 45, 46 };
 
 const byte PINAWDSIG { 37 };  /* AudioWarningDevice signal            */
 
-const byte PINLEDRED { 36 };  /* Red LED.    Error                    */
+const byte PINLEDRED { 36 };  /* Red LED.    Error/Alarm              */
 
 const byte PINLEDGRN { 35 };  /* Green LED.  CBUS SLiM                */
 

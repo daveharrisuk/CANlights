@@ -81,8 +81,6 @@ const char sEN[SIZE_EN][10]   /* fixed width strings  */
 
 /* table sizes */
 
-const byte CHANQTY { 10 };   /* qty of PWM channels used for light strings */
-
 const byte MAXDC { 255 };    /* Duty Cycle ranges 0 to 255                 */
 
 

@@ -8,21 +8,23 @@
  * IO pin definitions
  * 
  * Target MCU is Arduino compatable 'MEGA 2560 PRO (EMBED)' or Arduino 'MEGA'
- * 
- * Target PCB is CANlights   Rev A
- * 
+ * Target PCB is CANlights   Rev B
 */
 #ifndef PIN_H__  /* include guard */
 #define PIN_H__
 
 #include <Arduino.h>
+//#include "CANlights.h"
+
+const uint8_t QTY_CHAN { 10 };        /* qty of PWM channels for LED chans    */
+
 
 /* Define the pins used
  * ---------------------
- *  
- *  
- * MEGA ATmega2560 has...
- *  External interrupt INT pins are 2, 3, 18, 19, 20 and 21. 
+ *
+ * Arduino MEGA and MEGA 2560 PRO have...
+ * 
+ *  External interrupt INT pins on 2, 3, 18, 19, 20 and 21. 
  *   2/3 used by timer comparators 3B and 3C. 2 assigned to SPI_INT.
  *   18/19 free, assigned to Encoder. 
  *   20/21 reserved for I2C. 
@@ -48,79 +50,59 @@
  *  44  5C    Free.  Assigned to PWM7.
  *  45  5B    Free.  Assigned to PWM8.
  *  46  5A    Free.  Assigned to PWM9.
- *  
+*  
 *  
  * Array of PWM pins
 */
-const byte CHANQTY { 10 };   /* qty of PWM channels used for light strings */
+const uint8_t PWMPIN[QTY_CHAN] { 3, 5, 6, 7, 8, 9, 10, 44, 45, 46 };
 
-const byte PWMPIN[CHANQTY]  { 3, 5, 6, 7, 8, 9, 10, 44, 45, 46 };
+/* Alarm & status outputs */
 
+const uint8_t PINAWDSIG { 37 };      /* AudioWarningDevice signal            */
+const uint8_t PINLEDRED { 36 };      /* Red LED.    Error/Alarm              */
+const uint8_t PINLEDGRN { 35 };      /* Green LED.  CBUS SLiM                */
+const uint8_t PINLEDYEL { 34 };      /* Yellow LED. CBUS FLiM                */
+const uint8_t PINLEDORA { 33 };      /* Orange LED. Day mode                 */
 
-/* Alarms and status  outputs */
+/*     ADC Inputs        */
 
-const byte PINAWDSIG { 37 };  /* AudioWarningDevice signal            */
+const uint8_t PINSENSE { A0 };       /* All MOSFET Id via 0R05 for 2.6A max  */
+const uint8_t PINBLUE { A14 };       /* PolyFuse sense, Volts on blue LED    */
 
-const byte PINLEDRED { 36 };  /* Red LED.    Error/Alarm              */
+/*      Inputs           */
 
-const byte PINLEDGRN { 35 };  /* Green LED.  CBUS SLiM                */
+const uint8_t PINDAYNIGHT { A12 };   /* local day/night PB switch            */
+const uint8_t PINCAN { 29 };         /* Link in if no CAN connected. Read 0  */
+const uint8_t PINCBUS { 28 };        /* FLiM/SLiM push switch                */
 
-const byte PINLEDYEL { 34 };  /* Yellow LED. CBUS FLiM                */
+/*        SPI bus         */
 
-const byte PINLEDORA { 33 };  /* Orange LED. Night mode               */
+const uint8_t PINSPIMISO { 50 };     /* Master In, Slave Out  (HW SPI 50)    */
+const uint8_t PINSPIMOSI { 51 };     /* Master Out, Slave In  (HW SPI 51)    */
+const uint8_t PINSPISCK  { 52 };     /* clock                 (HW SPI 52)    */
+const uint8_t PINSPI_SS  { 53 };     /* Slave Select                         */
+const uint8_t PINSPI_INT { 2 };      /* Interrupt (must be an INT pin)       */
 
+/* Rotary Encoder inputs  */
 
-/* inputs        */
+const uint8_t PINENCPHA { 18 };      /* encoder phase A (must be INT pin)    */
+const uint8_t PINENCPHB { 17 };      /* encoder phase B                      */
+const uint8_t PINENCSW  { 19 };      /* encoder SW (must be INT pin)         */
 
-const byte PINSENSE { A0 };   /* All MOSFET Id via 0R05 for 2.6A max  */
+/*        I2C bus         */
 
-const byte PINBLUE { A14 };   /* PolyFuse sense, Volts on blue LED    */
+const uint8_t PINI2CSCL { 20 };      /* I2C clock     (HW I2C pin is 20 )    */
+const uint8_t PINI2CSDA { 21 };      /* I2C data      (HW I2C pin is 21 )    */
 
-const byte PINDAYNIGHTPB { A12 }; /* local day/night PB switch        */
+/*  Test Point outputs    */
 
-//const byte PININPUT { A6 };   /* Lights_1 module input via Opto     */
-
-const byte PINSW0 { 32 };     /* Lights_1 Adr1   */
-
-const byte PINNOCAN { 29 };   /* Link in if no CAN connected          */
-
-const byte PINFLIMSW { 28 };  /* FLiM/SLiM push switch                */
-
-
-/* SPI bus      */
-
-const byte PINSPIMISO { 50 };  /* Master In, Slave Out  (HW SPI 50) */
-const byte PINSPIMOSI { 51 };  /* Master Out, Slave In  (HW SPI 51) */
-const byte PINSPISCK  { 52 };  /* clock                 (HW SPI 52) */
-const byte PINSPI_SS  { 53 };  /* Slave Select                      */
-const byte PINSPI_INT { 2 };   /* Interrupt (must be an INT pin)    */
-
-
-/* Rotary Encoder inputs */
-
-const byte PINENCPHA { 18 };   /* encoder phase A (must be INT pin) */
-const byte PINENCPHB { 17 };   /* encoder phase B                   */
-const byte PINENCSW  { 19 };   /* encoder SW (must be INT pin)      */
-
-
-/* I2C bus       */
-
-const byte PINI2CSCL { 20 };   /* I2C clock     (HW I2C pin is 20 ) */
-const byte PINI2CSDA { 21 };   /* I2C data      (HW I2C pin is 21 ) */
-
-
-/* Test Point outputs  */
-
-const byte PINTP_D30 { 30 };   /* MEGA MCU pin D30 maps CPU pin PC7 */
-                               /* macros to fast digitalWrite       */
-
+const uint8_t PINTP_D30 { 30 };      /* MEGA MCU pin D30 maps CPU pin PC7    */
+                                  /* macros to fast digitalWrite          */
 #define PINTP_D30_HIGH  PORTC = PORTC | B10000000
 #define PINTP_D30_LOW   PORTC = PORTC & B01111111
 
-
-const byte PINTP_D31 { 31 };   /* MEGA MCU pin D31 maps CPU pin PC6 */
-                               /* macros to fast digitalWrite       */
-
+const uint8_t PINTP_D31 { 31 };      /* MEGA MCU pin D31 maps CPU pin PC6    */
+                                  /* macros to fast digitalWrite          */
 #define PINTP_D31_HIGH  PORTC = PORTC | B01000000
 #define PINTP_D31_LOW   PORTC = PORTC & B10111111
 

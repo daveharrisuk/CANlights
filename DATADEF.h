@@ -16,30 +16,11 @@
 #ifndef DATADEF_H__  /* include guard */
 #define DATADEF_H__
 
-/*------------------------- data definitions -------------------------------*/
+/*------------------------- data definitions --------------------------------*/
 
 
 
-enum EVAL_t : byte  /* EV values on stored events */
-{
-  EVAL_DAYNIGHT = 0,     /* On event NIGHT, Off event DAY.  Set input global  */
-  EVAL_TESTCH1 = 1,      /* On event DC=254, Off event DC=1                   */
-  EVAL_TESTCH2 = 2,      /* On event DC=254, Off event DC=1                   */
-  EVAL_TESTCH3 = 3,      /* On event DC=254, Off event DC=1                   */
-  EVAL_TESTCH4 = 4,      /* On event DC=254, Off event DC=1                   */
-  EVAL_TESTCH5 = 5,      /* On event DC=254, Off event DC=1                   */
-  EVAL_TESTCH6 = 6,      /* On event DC=254, Off event DC=1                   */
-  EVAL_TESTCH7 = 7,      /* On event DC=254, Off event DC=1                   */
-  EVAL_TESTCH8 = 8,      /* On event DC=254, Off event DC=1                   */
-  EVAL_TESTCH9 = 9,      /* On event DC=254, Off event DC=1                   */
-  EVAL_TESTCH10 = 10,    /* On event DC=254, Off event DC=1                   */  
-  EVAL_TESTEND  = 11,    /* On event Test End, Off event NA                   */
-  EVAL_SHUTDOWN = 12     /* On = All chans DC=0, Off event = normal operation */
-};
-
-const byte SIZE_EVAL { 13 };
-
-const char sEVAL[SIZE_EVAL][9] /* fixed width strings */
+const char sEVAL[QTY_EVAL][9] /* fixed width strings */
 {
   "DayNight",             /* switch day or night          */
   "TestCh1 ",             /* Chan 1 DC = 1 or 254         */
@@ -56,75 +37,35 @@ const char sEVAL[SIZE_EVAL][9] /* fixed width strings */
   "ShutDown"              /* all channels duty cycle = 0  */
 };
 
-
-
-
-enum CBUS_EN_t : byte  /* Event Numbers(EN) for ACON/ACOF message sending */
+const char sEN[QTY_EN][9]       /* fixed width strings  */
 {
-  EN_TESTMSG   = 0,    /* On event NA, Off event NA                         */
-  EN_ALARM     = 1,    /* On event = Alarm, Off event = No Alarm            */
-  EN_POWER     = 2,    /* On event = Power On, Off event = Power Off        */
-  EN_PBPRESS   = 3     /* On event = Pressed, Off event = released          */
+  " DayNite",
+  " PowerOn",
+  " Alarm  ",
+  " TestMsg"
 };
 
-const byte SIZE_EN { 5 };
-
-const char sEN[SIZE_EN][10]   /* fixed width strings  */
-{                          
-  " TestMsg ",                /* test message         */
-  " Alarm   ",                /* Alarm                */
-  " Power   ",                /* CPU running          */
-  " PBpress "                 /* push button pressed  */
+const char sINPUT[QTY_INPUT][6]  /* fixed width strings */
+{
+  "Day  ",
+  "Night" 
 };
 
-
-
-/* table sizes */
-
-const byte MAXDC { 255 };    /* Duty Cycle ranges 0 to 255                 */
-
-
-const byte NVQTY { 60 };     /* qty of Node Variables                      */
-  
-const byte EVENTSQTY { 64 }; /* total events required                      */
-
-
-
-enum INPUT_t : bool   /* module input codes. for input global var */
+const char sSTATE[OTY_STATE][5]   /* fixed width strings */
 {
-  INPUT_DAY = 0, INPUT_NIGHT = 1 
+  "Stdy",
+  "Tran",
+  "Dly " 
 };
-const char sINPUT[2][6] { "Day  ", "Night" };        /* fixed width strings */
 
-
-
-enum STATE_t : byte  /* channel state codes. For var[] */
+const char sMODE[QTY_MODE][9]  /* fixed width strings */
 {
-  STATE_STEADY = 0, STATE_TRANSIT, STATE_DELAY 
-};
-const char sSTATE[3][5] { "Stdy", "Tran", "Dly " };  /* fixed width strings */
-
-
-
-enum MODE_t : byte    /* channel mode codes. For global var[] */
-{
-  MODE_DAYNIGHT = 0,
-  MODE_DUSK,
-  MODE_DAWN,
-  MODE_DUSKDAWN,
-  MODE_NIGHT010,
-  MODE_DAY010
-};
-const byte MODEQTY { 6 };
-
-const char sMODE[MODEQTY][10]    /* Mode code string    */
-{
-  "DayNight ",                   /* fixed width strings */
-  "Dusk     ",
-  "Dawn     ",
-  "DuskDawn ",
-  "Night010 ",
-  "Day010   "
+  "DayNight",
+  "Dusk    ",
+  "Dawn    ",
+  "DuskDawn",
+  "Night010",
+  "Day010  "
 };
 
 /* Channel Modes...
@@ -173,26 +114,28 @@ const char sMODE[MODEQTY][10]    /* Mode code string    */
 
 struct var_t   /* channel data structure. Populated at boot time from NVs    */
 {
-  byte      dc[2];        /* DC0 & DC1 phase 0 & phase 1 targets     0 - 255 */
+  uint8_t   secTrans;     /* Transition seconds                      0 - 255 */
   
-  byte      dcCur;        /* current DC value                        0 - 255 */
-  
-  uint32_t  msCount;      /* millis() counter for step or delay   0 - 255000 */
-                      
-  byte      secCount;     /* working reg for seconds count           0 - 255 */
-  
-  STATE_t   state;        /* "Stdy", "Tran", "Dlay" live trackers      0 - 2 */
-  
-  bool      phase;        /* phase 0 or 1                              0 - 1 */
-  
-  uint16_t  msPerStep;    /* ms between duty cycle inc/dec           0 - 65k */
-                          /* Derived from NV Transit seconds                 */
-                         
-  byte      secTrans;     /* Transition seconds                      0 - 255 */
-  
-  byte      secDelay[2];  /* Delay seconds                           0 - 255 */
+  uint8_t   secDelay[2];  /* Delay seconds                           0 - 255 */
 
   MODE_t    mode;         /* chan mode                                 0 - 5 */  
+
+  uint8_t   dc[2];        /* DC0 & DC1 phase 0 & phase 1 targets     0 - 255 */
+  
+  uint8_t   dcCur;        /* current DC value                        0 - 255 */
+  
+                          /* Derived from NV Transition seconds              */
+  uint16_t  msPerStep;    /* ms between duty cycle inc/dec           0 - 65k */
+
+     /* following are status/trackers */
+                          
+  uint32_t  msCount;      /* millis() counter for step or delay   0 - 255000 */
+                      
+  uint8_t   secCount;     /* seconds counter                         0 - 255 */
+  
+  STATE_t   state;        /* Stdy, Tran, Dlay trackers                 0 - 2 */
+  
+  bool      phase;        /* phase 0 or 1                              0 - 1 */                        
 };
 
 

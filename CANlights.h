@@ -16,6 +16,85 @@
 #define CANLIGHTS_H__
 
 
+// const uint8_t QTY_CHAN { 10 };        /* qty of PWM channels for LED chans    */
+
+const uint8_t QTY_NV { 60 };    /* qty of Node Variables                      */
+  
+const uint8_t QTY_EVENT { 12 }; /* total events required                      */
+
+
+const uint8_t MINDC { 0 };      /* Duty Cycle ranges 0                        */
+const uint8_t MAXDC { 255 };    /*     to 255                                 */
+
+
+
+enum CBUS_EN_t : uint8_t  /* Event Numbers(EN) for ACON/ACOF message sending */
+{
+  EN_DAYNITE = 0,             /* (extInput) On event= Night, Off event= Day  */
+  EN_POWERON = 1,             /* On event = Power On, Off event = na         */
+  EN_ALARM   = 2,             /* On event = Alarm, Off event = No Alarm      */
+  EN_TESTMSG = 3              /* On event NA, Off event NA                   */
+};
+const uint8_t QTY_EN { 4 };
+
+
+enum MODE_t : uint8_t    /* channel mode codes. For global var[] */
+{
+  MODE_DAYNIGHT = 0,
+  MODE_DUSK,
+  MODE_DAWN,
+  MODE_DUSKDAWN,
+  MODE_NIGHT010,
+  MODE_DAY010
+};
+const uint8_t QTY_MODE { 6 };
+
+
+enum STATE_t : uint8_t  /* channel state codes. For var[] */
+{
+  STATE_STEADY,
+  STATE_TRANSIT,
+  STATE_DELAY 
+};
+const uint8_t OTY_STATE { 3 };
+
+
+enum ONOFF_t : bool   /* CBUS on or off codes */
+{
+  ONOFF_OFF = 0,
+  ONOFF_ON
+};
+const uint8_t OTY_ONOFF{ 2 };
+
+
+enum INPUT_t : bool   /* module input codes. for input global var */
+{
+  INPUT_DAY = 0,
+  INPUT_NIGHT
+};
+const uint8_t QTY_INPUT { 2 };
+
+
+enum EVAL_t : uint8_t  /* EV values on stored events */
+{
+  EVAL_DAYNIGHT = 0,     /* On event NIGHT, Off event DAY.  Set input global  */
+  EVAL_TESTCH1  = 1,     /* On event DC=254, Off event DC=1                   */
+  EVAL_TESTCH2  = 2,     /* On event DC=254, Off event DC=1                   */
+  EVAL_TESTCH3  = 3,     /* On event DC=254, Off event DC=1                   */
+  EVAL_TESTCH4  = 4,     /* On event DC=254, Off event DC=1                   */
+  EVAL_TESTCH5  = 5,     /* On event DC=254, Off event DC=1                   */
+  EVAL_TESTCH6  = 6,     /* On event DC=254, Off event DC=1                   */
+  EVAL_TESTCH7  = 7,     /* On event DC=254, Off event DC=1                   */
+  EVAL_TESTCH8  = 8,     /* On event DC=254, Off event DC=1                   */
+  EVAL_TESTCH9  = 9,     /* On event DC=254, Off event DC=1                   */
+  EVAL_TESTCH10 = 10,    /* On event DC=254, Off event DC=1                   */  
+  EVAL_TESTEND  = 11,    /* On event Test End, Off event NA                   */
+  EVAL_SHUTDOWN = 12     /* On = All chans DC=0, Off event = normal operation */
+};
+const uint8_t QTY_EVAL { 13 };
+
+
+
 /*----------------------------- class Power ------------------------------------
  *
  *  processing over Amp or under Volt conditions
@@ -25,11 +104,11 @@ class Power
 {
   public:
  
-    void alarm( uint16_t );         /* Sound AWD for milli second.            */
-    bool isUnderVolt();             /* 12 V line failed / PolyFuse tripped    */
-    bool isOverAmp();               /* read Volts on sense resistor as Amps   */
-    void printAmps();               /* print, approx, measured mA to Serial   */
-    void test();                    /* if fault alarm & reduce duty cycles    */
+    void alarm(uint16_t duration_ms); /* Sound AWD for n milli second.        */
+    bool isUnderVolt();               /* 12 V PolyFuse tripped                */
+    bool isOverAmp();                 /* read Volts on sense resistor as Amps */
+    void printAmps();                 /* print, approx, measured mA to Serial */
+    void testAmpAndVolt();            /* if fault alarm & reduce duty cycles  */
 
   private :
   
@@ -44,7 +123,6 @@ class Power
     static const uint16_t MAXAMPADCREAD { 93 };  /* 2.0 A  ADC threshold      */
     static const uint16_t AMPCALIBRATE { 22 };   /* multiplier for true Amps  */
   
-
 }; /* end of class Power */
 
 
@@ -58,21 +136,21 @@ class GetNV
 {
   public :
    
-    byte tran( byte );  	      /* return transition NV for chan      */
-    byte dly( byte, bool );     /* return delay NV for chan & index   */
-    byte dc( byte, bool );      /* return DutyCycle NV for chan/index */
-    byte mode( byte );          /* return mode NV for chan            */
+    uint8_t tran( uint8_t );  	    /* return transition NV for chan      */
+    uint8_t dly( uint8_t, bool );   /* return delay NV for chan & index   */
+    uint8_t dc( uint8_t, bool );    /* return DutyCycle NV for chan/index */
+    uint8_t mode( uint8_t );        /* return mode NV for chan            */
   
-    enum NV_t : byte { NV_TRAN = 0, NV_DLY, NV_DC, NV_MODE, NV_MAPSIZE };
+    enum NV_t : uint8_t { NV_TRAN = 0, NV_DLY, NV_DC, NV_MODE, NV_MAPSIZE };
 
   private :
 
-    static constexpr byte NVmap[NV_MAPSIZE][2] 
+    static constexpr uint8_t NVmap[NV_MAPSIZE][2] 
     {
-      { 1,  1 },  /* Transition Seconds for phase 0 or 1 are the same */
-      { 11, 21 }, /* Delay Seconds for phase 0 and 1                  */
-      { 31, 41 }, /* DutyCylce for phase 0 and 1                      */
-      { 51, 51 }  /* Modes for phase 0 or 1 are the same              */
+      { 1,  1 },    /* Transition Secs ... for phase 0 or 1 are the same  */
+      { 11, 21 },   /* Delay Seconds for phase 0 and 1                    */
+      { 31, 41 },   /* DutyCylce for phase 0 and 1                        */
+      { 51, 51 }    /* Modes ... for phase 0 or 1 are the same            */
     };
 
 }; /* end of class GetNV */
@@ -88,7 +166,7 @@ class SerMon
 {
   public :
   
-    void about();
+    void about(char boot = ' ');
     void cbusState();
     void variables();
     void storedEvents();
@@ -101,26 +179,26 @@ class SerMon
 /*-----------------------------function declararioins -------------------------
 */
 
-void setup();
+void loop();                          /* bacground process                    */
+void processChannels();               /* foreground process 1ms timer1        */
+void processChan(uint8_t);            /* process single chan, from foreground */
 
-void loop();
+void startNewPhase();                 /* called from loop or setUpChannels    */
 
-void processChannels();     /* foreground 1ms timer1 process     */
+void eventHandler( uint8_t, CANFrame* ); /* function registerd to CBUS library*/
+void frameHandler( CANFrame* );       /* function registerd to CBUS library   */ 
 
-void startNewPhase();
+void sendCBUSmessage( ONOFF_t, uint16_t ); /* format and send CBUS message    */
 
-void eventHandler( byte, CANFrame * );
+void setDefaultNVs();                 /* preset NVs. Called by SerMon command */
 
-void frameHandler( CANFrame * ); 
+void turnOffPWMs();                   /* set all PWM to duty cycle zero       */
+void restorePWMs();                   /* set all PWM to duty cycle to old val */
 
-void setupChannels();
-
-void sendCBUSmessage( bool, uint16_t );
-
-void resetNodeVariables();
-
-extern void setPins();
-
+void setup();                         /* called on power on or reset          */
+void setupCBUS();                     /* called by setup()                    */
+void setupChannels();                 /* called by setup()                    */
+extern void setupPins();              /* called by setup()  in PIN.cpp        */
 
 
 

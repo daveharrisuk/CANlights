@@ -3,7 +3,7 @@
  *
  * CBUS module controls 10 PWM LED strings for overhead/street/building. 
 */
-const char sTITLE[] { "CANlights © Dave Harris (MERG M2740) 2021" };
+const char sTITLE[] { "CANlights © Dave Harris 2021 (MERG M2740)" };
 
 const uint8_t VER_MAJOR { 0 };          /* 0-255.      CBUS version style */
 const char    VER_MINOR { 'b' };        /* a-z character.                 */
@@ -58,7 +58,7 @@ const uint8_t VER_BETA  { 3 };          /* 0-255. 0 is Released, > 0 beta */
  *  MCU board : 'MEGA 2560 PRO' (Arduino Mega2560 should work, on breadboard)
  *  Processor : ATmega2560 
  *    Clock   : 16 MHz
- *    Flash   : 26.1 KB of 256 KB (10%). (NB: 8 KB is reserved for bootloader)
+ *    Flash   : 26.2 KB of 256 KB (10%).  (NB: 8 KB is used by bootloader)
  *    SRAM    : 2.4 KB of 8 KB used (28%).
  *    EEPROM  : 0.2 KB of 4 KB used (5%).
  *    Timer   : 6 of 6 used.  (100%).
@@ -83,17 +83,16 @@ const uint8_t VER_BETA  { 3 };          /* 0-255. 0 is Released, > 0 beta */
  *  1-Mar-2021 DH, v0a beta1 add MERG CBUS library and MCP2515 to SPI bus
  * 11-Apr-2021 DH, v0a beta2 CANlights basic working (a few bugs to go)
  *  9-May-2021 DH, v0b beta3 revB PCB changes
- *
-*-------------------------- file includes ----------------------------------*/
+ *  
+*--------------------------- file includes ---------------------------------*/
 
-/* Duncan Greenwood © CBUS libraries in https://github.com/MERG-DEV         */
+#include <ACAN2515.h>         /* 2.0.8   MCP2515/25625 CAN ctrl             */
+
+/* Duncan Greenwood © CBUS libraries    https://github.com/MERG-DEV         */
 #include <CBUS2515.h>         /* 1.1.12                                     */
 #include <CBUSconfig.h>       /* 1.1.11                                     */
-#include <CBUSParams.h>       /* ?        in CBUS library                   */
-#include <cbusdefs.h>         /* 8t       in CBUS library                   */
-                              /* The following needed in libraries folder.. */
-                              /* ACAN2515.h  2.0.8   MCP2515/25625 CAN ctrl */
-                              /* CBUS.h      1.1.15  implements CBUS module */
+#include <CBUS.h>             /* 1.1.15  implements CBUS module             */
+#include <cbusdefs.h>         /* 8t      in CBUS library                    */
 #include <CBUSswitch.h>       /* 1.1.7                                      */
 #include <CBUSLED.h>          /* 1.1.6                                      */
 
@@ -112,25 +111,25 @@ const uint8_t VER_BETA  { 3 };          /* 0-255. 0 is Released, > 0 beta */
 /*---------------------------- global variables -----------------------------*/
 
 
-uint8_t  params[21];           /* CBUS params                                */
+uint8_t  params[21];           /* CBUS params array                          */
 
 volatile var_t var[QTY_CHAN];  /* channel variable array. Is modified by ISR */
                                /* A mix of NVs, derived and tracking values  */
                                
-volatile      INPUT_t  input;           /* input state 0 DAY or 1 NIGHT      */
-volatile bool inputChange { true };     /* reset this flag when actioned     */
+volatile      INPUT_t  input;        /* input state 0 = DAY or 1 = NIGHT     */
+volatile bool inputChange { true };  /* reset this flag when actioned        */
 
 EVAL_t evCommand { EVAL_DAYNIGHT };
 
-uint8_t testDC { 1 };
-bool testCh    { false };
+uint8_t testDC { 1 };          /* current duty cycle for test mode           */
+bool    testCh { false };      /* false = no test chan, true = testing chan  */
 
-bool stopISR   { false };       /* flag to disable 1 ms ISR process, if true */
+bool stopISR   { false };      /* flag to disable 1 ms ISR process, if true  */
 
-bool noCAN     { false };
+bool noCAN     { false };      /* false = CBUS on, true = noCAN = no CBUS    */
 
-bool debug     { false };         /* false = quiet, true = verbose           */
-bool muteAlarm { false };         /* false = quiet, true = sounding          */
+bool debug     { false };      /* false = quiet, true = verbose              */
+bool muteAlarm { false };      /* false = quiet, true = sounding             */
 
 
 /*------------------------------- objects -----------------------------------*/
@@ -141,6 +140,7 @@ CBUSConfig config;            /* CBUSconf object                             */
 CBUSLED    CBUSgreen;         /* LED green object                            */
 CBUSLED    CBUSyellow;        /* LED yellow object                           */
 CBUSSwitch CBUS_PB;           /* CBUS mode push switch object                */
+CBUSSwitch INPUT_SW;          /* Input switch object                         */
 
 SerMon SerialMon;             /* Serial Monitor print object                 */
 GetNV  NV;                    /* lookup NV for chan and datatype             */
@@ -158,8 +158,15 @@ void loop()
   {
     CBUS.process();
   };
-  PWR.testAmpAndVolt();
   
+  PWR.testAmpAndVolt();
+
+//  if( INPUT_SW.isPressed() != input )
+//  {
+//    input = (INPUT_t) ! input;
+//    sendEvent( (ONOFF_t) input, EN_DAYNITE );
+//  }
+
   if( inputChange == true )  /* flag set by Event handler  */
   {
     inputChange = false;     /* clear the flag             */
@@ -177,18 +184,10 @@ void loop()
                                 /* !!! This is ISR which runs every 1 ms !!! */
 void processChannels()          /*        keep it light as possible          */
 {
-//  static uint16_t msCount = 0;
-//  static bool plot = false;
-                       
   PINTP_D31_HIGH;               /* is ISR run time = min 21 us to peak 87 us */
 
   if( stopISR == false )        /* other code sets true, if it changes DCs   */
   {                 
-//    if( msCount++ > 250 )
-//    {
-//      plot = true;
-//      msCount = 0;
-//    }
     bool transits { false };    /* lights LED_BUILTIN if Transits are active */
 
     for( uint8_t ch = 0; ch < QTY_CHAN; ch++ )      /* loop all channels     */
@@ -204,19 +203,8 @@ void processChannels()          /*        keep it light as possible          */
           processChan( ch, transits );
         }
       }
-      
-//      if( plot == true )
-//      {
-//        Serial << var[ch].dcCur << "; ";
-//      }
     }
     digitalWrite( LED_BUILTIN, transits );         /* show TRANSIT activity */
-    
-//    if( plot == true )
-//    {
-//      Serial << "0; 1000" << endl;
-//      plot = false;
-//    }
   }
   PINTP_D31_LOW;   /* time from pin high to low is ISR run time */
 }
@@ -443,7 +431,7 @@ void setup()
 
   if( ( config.readEEPROM( 0 ) > 2 ) ||         /* invalid SLiM/FLiM          */
       ( config.readEEPROM( 1 ) > 127 ) )        /* invalid CANID              */
-  {
+  {    /* EEPROM map 0=SLiM/FLiM, 1=CANID, 2/3=NNhi&lo, 5=reset, 6-9=reserved */
     Serial << "!Invalid EEPROM contents." << endl;
   }
 
@@ -451,8 +439,6 @@ void setup()
   
   setupChannels();
   
-  SerialMon.cbusState();
-  SerialMon.storedEvents();
   SerialMon.variables();
   
   PWR.isOverAmp();
@@ -460,6 +446,8 @@ void setup()
   
   Timer1.initialize( 1000 );                    /* T1 runs at 1000 us (1 ms)  */
   Timer1.attachInterrupt( processChannels );    /* T1 ISR is Foreground task  */
+
+  Serial << " debug=" << debug << " mute=" << muteAlarm << endl;
 }
 
 
@@ -474,7 +462,6 @@ void setupCBUS()
   const uint8_t CBUSMODULEID { 99 };
   
   config.setEEPROMtype( EEPROM_INTERNAL );
-      /* EEPROM map 0=SLiM/FLiM, 1=CANID, 2/3=NNhi&lo, 5=reset, 6-9=reserved */
   config.EE_NVS_START = 10;
   config.EE_NUM_NVS = QTY_NV;         /* QTY_NV is 60. Used in setDefaultNVs */
   config.EE_EVENTS_START = ( config.EE_NVS_START + QTY_NV );
@@ -531,14 +518,20 @@ void setupCBUS()
   CBUS.setOscFreq( 16 * 1e6f );           /* SPI    frequency                 */
   CBUS.setPins( PINSPI_SS, PINSPI_INT );  /* SPI pins, outside of H/W SPI     */
 
-  if( noCAN == false )
+  if( noCAN == true )
+  {
+    Serial << "NoCAN link is in." << endl;
+  }
+  else
   {
     while( CBUS.begin() == false )
     {
       Serial << " ErrFlg 0x" << _HEX( CBUS.canp->errorFlagRegister() ) << endl;
       PWR.alarm( 250 );
     }
-    sendCBUSmessage( ONOFF_ON, EN_POWERON );
+    SerialMon.cbusState();
+    SerialMon.storedEvents();
+    sendEvent( ONOFF_ON, EN_POWERON );
   }
 }
 
@@ -599,7 +592,7 @@ bool Power::isOverAmp()
 
 void Power::printAmps()
 {
-  Serial << " Current " << ( amps * AMPCALIBRATE ) << "mA" << endl;
+  Serial << " Amp=" << ( amps * AMPCALIBRATE ) << "mA" << endl;
 }
 
 
@@ -614,7 +607,7 @@ void Power::testAmpAndVolt()
   {
     stopISR = true;                 /* stop ISR as this code overides DC  */
     digitalWrite( PINLEDRED, HIGH );
-    sendCBUSmessage( ONOFF_ON, EN_ALARM );
+    sendEvent( ONOFF_ON, EN_ALARM );
     
     turnOffPWMs();
     Serial << "! OverAmp or UnderVolt";
@@ -628,7 +621,7 @@ void Power::testAmpAndVolt()
     stopISR = false;
     
     restorePWMs();
-    sendCBUSmessage( ONOFF_OFF, EN_ALARM );
+    sendEvent( ONOFF_OFF, EN_ALARM );
   }
 }
 
@@ -712,15 +705,15 @@ uint8_t GetNV::mode( uint8_t chan )
  * event process function called from CBUS library when learned event is rx
 */
 
-void eventHandler( uint8_t index, CANFrame *msg ) 
+void eventHandler( uint8_t idx, CANFrame *msg ) 
 {
   PINTP_D30_HIGH;
   
-  EVAL_t  evVal = (EVAL_t) config.getEventEVval( index, 1 );
+  EVAL_t  evVal = (EVAL_t) config.getEventEVval( idx, 1 );
   uint8_t opc = msg->data[0];
   bool evOn = ( opc == OPC_ASON || opc == OPC_ACON );
   
-  Serial << "> Event opc" << _HEX(opc) << " On=" << evOn << " eVal=" << evVal;
+  Serial << endl << "> Ev" << idx << ( evOn ? " ON":" OF" ) <<" eVal="<< evVal;
   switch( evVal )
   {
     case EVAL_DAYNIGHT:
@@ -760,7 +753,9 @@ void eventHandler( uint8_t index, CANFrame *msg )
       break; 
     default:
       if( evVal > EVAL_TESTCH10 )
-      { Serial << "! unknow evVal"; }
+      {
+        Serial << " unknow!";
+      }
       else
       {
         if( evCommand != evVal && testCh == true )   
@@ -800,12 +795,12 @@ void frameHandler( CANFrame *msg )
 }
 
 
-/*------------------------------------- sendCBUSmessage() -------------------
+/*--------------------------------------- sendEvent() -------------------
  * 
  * Send CBUS message ACON / ACOF and EN
 */
 
-void sendCBUSmessage( ONOFF_t onOff, uint16_t en )
+void sendEvent( ONOFF_t onOff, uint16_t en )
 {
   if( config.FLiM == true && noCAN == false )
   {
@@ -821,8 +816,8 @@ void sendCBUSmessage( ONOFF_t onOff, uint16_t en )
     {
       Serial << endl << "! Error 0x" << _HEX( CBUS.canp->errorFlagRegister() );
     }
-    Serial << "< txACO" << ( onOff == true ? "N n" : "F n" ) << config.nodeNum 
-    << " e" << en << ( ( en >= QTY_EN ) ? "=?" : sEN[en] ) << endl;
+    Serial << "< tx ACO" << ( onOff == true ? "N n" : "F n" ) << config.nodeNum 
+    << " e" << en << ( ( en >= QTY_EN ) ? "=?" : sEN[en] ) << endl << endl;
   }
 }
 
@@ -835,8 +830,8 @@ void sendCBUSmessage( ONOFF_t onOff, uint16_t en )
 void SerMon::about(char boot) 
 {
   Serial << endl << endl << boot << sTITLE
-  << "  v" << VER_MAJOR << VER_MINOR << " β" << VER_BETA << endl
-  << " menu: c=bus, e=ev, v=var, m=mem, @=Amp, T=tx, /=debug, *=mute, DN=DefNv"
+  << " v" << VER_MAJOR << VER_MINOR << " β" << VER_BETA << endl
+  << " menu: c=bus, e=ev, v=var, m=mem, A=Amp, T=tx, /=debug, *=mute, DN=DefNv"
   << endl;
 }
 
@@ -928,9 +923,9 @@ void SerMon::storedEvents()
       };
       uint8_t eval = config.getEventEVval( j, 1 );
 
-      Serial << ' ' << j << " n" << ( v[0] * 256 ) + v[1]
+      Serial << " ev" << j << " n" << ( v[0] * 256 ) + v[1]
         << " e" << ( v[2] * 256 ) + v[3] << " eVal=" << eval << ' '
-        << ( ( eval >= QTY_EVAL ) ? "!unk" : sEVAL[eval] ) << endl;   
+        << ( ( eval >= QTY_EVAL ) ? "!unknown" : sEVAL[eval] ) << endl;   
     }
   }
   Serial << "   " << count << '/' << config.EE_MAX_EVENTS << endl;
@@ -953,7 +948,7 @@ void SerMon::processKeyBoard()
         if( Serial.read() == 'N' )
         { setDefaultNVs(); }
         break;
-      case '@':           /* print estimate LED Amps                    */
+      case 'A':           /* print estimate LED Amps                    */
         PWR.printAmps();
         break;
       case 'c':           /* CBUS status                                */
@@ -972,10 +967,10 @@ void SerMon::processKeyBoard()
         Serial << " freeSRAM " << config.freeSRAM() << endl;
         break;
       case 't':           /* send test message ACOF                     */
-        sendCBUSmessage( ONOFF_OFF, EN_TESTMSG );
+        sendEvent( ONOFF_OFF, EN_TESTMSG );
         break;
       case 'T':           /* send test message ACON                     */
-        sendCBUSmessage( ONOFF_ON, EN_TESTMSG );
+        sendEvent( ONOFF_ON, EN_TESTMSG );
         break;
       case '/':           /* debug toggle                               */
         debug = ! debug;

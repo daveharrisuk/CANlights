@@ -16,7 +16,7 @@
 #define CANLIGHTS_H__
 
 
-// const uint8_t QTY_CHAN { 10 };        /* qty of PWM channels for LED chans    */
+extern const uint8_t QTY_CHAN;  /* qty of PWM channels for LED chans.   PIN.h */
 
 const uint8_t QTY_NV { 60 };    /* qty of Node Variables                      */
   
@@ -28,11 +28,11 @@ const uint8_t MAXDC { 255 };    /*     to 255                                 */
 
 
 
-enum CBUS_EN_t : uint8_t  /* Event Numbers(EN) for ACON/ACOF message sending */
+enum EN_t : uint8_t    /* Event Numbers(EN) for ACON/ACOF message sending */
 {
   EN_DAYNITE = 0,             /* (extInput) On event= Night, Off event= Day  */
   EN_POWERON = 1,             /* On event = Power On, Off event = na         */
-  EN_ALARM   = 2,             /* On event = Alarm, Off event = No Alarm      */
+  EN_ALARM   = 2,             /* On event = Alarm on, Off event = No Alarm   */
   EN_TESTMSG = 3              /* On event NA, Off event NA                   */
 };
 const uint8_t QTY_EN { 4 };
@@ -62,7 +62,7 @@ const uint8_t OTY_STATE { 3 };
 enum ONOFF_t : bool   /* CBUS on or off codes */
 {
   ONOFF_OFF = 0,
-  ONOFF_ON
+  ONOFF_ON = 1
 };
 const uint8_t OTY_ONOFF{ 2 };
 
@@ -188,7 +188,7 @@ void startNewPhase();                 /* called from loop or setUpChannels    */
 void eventHandler( uint8_t, CANFrame* ); /* function registerd to CBUS library*/
 void frameHandler( CANFrame* );       /* function registerd to CBUS library   */ 
 
-void sendCBUSmessage( ONOFF_t, uint16_t ); /* format and send CBUS message    */
+void sendEvent( ONOFF_t, uint16_t ); /* format and send CBUS message    */
 
 void setDefaultNVs();                 /* preset NVs. Called by SerMon command */
 

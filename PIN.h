@@ -14,9 +14,9 @@
 #define PIN_H__
 
 #include <Arduino.h>
-//#include "CANlights.h"
 
-const uint8_t QTY_CHAN { 10 };        /* qty of PWM channels for LED chans    */
+
+const uint8_t QTY_CHAN { 10 };       /* qty of PWM channels for LED chans    */
 
 
 /* Define the pins used

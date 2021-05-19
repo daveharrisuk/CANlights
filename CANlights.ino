@@ -6,8 +6,8 @@
 const char sTITLE[] { "CANlights © Dave Harris 2021 (MERG M2740)" };
 
 const uint8_t VER_MAJOR { 0 };          /* 0-255.      CBUS version style */
-const char    VER_MINOR { 'b' };        /* a-z character.                 */
-const uint8_t VER_BETA  { 3 };          /* 0-255. 0 is Released, > 0 beta */
+const char    VER_MINOR { 'c' };        /* a-z character.                 */
+const uint8_t VER_BETA  { 4 };          /* 0-255. 0 is Released, > 0 beta */
 
 /*------------------------ © Copyright and License -----------------------------
  *  
@@ -51,9 +51,16 @@ const uint8_t VER_BETA  { 3 };          /* 0-255. 0 is Released, > 0 beta */
  * - Over current protection. Audio alarm sounder plus CBUS event.
  * - diagnostics via Arduino Serial Monitor. 
  * 
+ * - LEDs
+ *    Red    = Alarm (see serial monitor for detail)
+ *    Yellow = FLiM mode
+ *    Green  = pre FliM mode and CAN activity flash
+ *    Orange = on is Night time, off is Day time
+ *    Blue   = 12v indicator
+ * 
  *-------------------------------- target -------------------------------------
  *  
- *  Framework : Arduino 1.8.13 (on Ubuntu 20)
+ *  Framework : Arduino 1.8.13 (Developed on Ubuntu 20.4)
  *  PCB       : CANlights revB - has MCU board as daughter board (KiCad)
  *  MCU board : 'MEGA 2560 PRO' (Arduino Mega2560 should work, on breadboard)
  *  Processor : ATmega2560 
@@ -83,13 +90,15 @@ const uint8_t VER_BETA  { 3 };          /* 0-255. 0 is Released, > 0 beta */
  *  1-Mar-2021 DH, v0a beta1 add MERG CBUS library and MCP2515 to SPI bus
  * 11-Apr-2021 DH, v0a beta2 CANlights basic working (a few bugs to go)
  *  9-May-2021 DH, v0b beta3 revB PCB changes
- *  
+ * 18-May-2021 DH, v0c beta4 confusion on event DayNight, renamed to NightSw 
+ * 
+ * 
 *--------------------------- file includes ---------------------------------*/
 
 #include <ACAN2515.h>         /* 2.0.8   MCP2515/25625 CAN ctrl             */
 
 /* Duncan Greenwood © CBUS libraries    https://github.com/MERG-DEV         */
-#include <CBUS2515.h>         /* 1.1.12                                     */
+#include <CBUS2515.h>         /* 1.1.12  CBUS for MCP2515 CAN chip          */
 #include <CBUSconfig.h>       /* 1.1.11                                     */
 #include <CBUS.h>             /* 1.1.15  implements CBUS module             */
 #include <cbusdefs.h>         /* 8t      in CBUS library                    */
@@ -97,6 +106,7 @@ const uint8_t VER_BETA  { 3 };          /* 0-255. 0 is Released, > 0 beta */
 #include <CBUSLED.h>          /* 1.1.6                                      */
 
 /* standard Arduino libraries                                               */
+#include <SPI.h>              /* 1.0                                        */
 #include <Streaming.h>        /* 6.0.8  Serial Monitor communications       */
 #include <TimerOne.h>         /* 1.1    1 ms foreground process             */
 
@@ -119,17 +129,13 @@ volatile var_t var[QTY_CHAN];  /* channel variable array. Is modified by ISR */
 volatile      INPUT_t  input;        /* input state 0 = DAY or 1 = NIGHT     */
 volatile bool inputChange { true };  /* reset this flag when actioned        */
 
-EVAL_t evCommand { EVAL_DAYNIGHT };
-
-uint8_t testDC { 1 };          /* current duty cycle for test mode           */
-bool    testCh { false };      /* false = no test chan, true = testing chan  */
-
-bool stopISR   { false };      /* flag to disable 1 ms ISR process, if true  */
-
-bool noCAN     { false };      /* false = CBUS on, true = noCAN = no CBUS    */
-
-bool debug     { false };      /* false = quiet, true = verbose              */
-bool muteAlarm { false };      /* false = quiet, true = sounding             */
+EVAL_t evCommand { EVAL_NIGHTSW }; /* the current event command              */
+uint8_t testDC   { 1 };          /* current duty cycle for test mode         */
+bool    testCh   { false };      /* false= no test chan, true= testing chan  */
+bool stopISR     { false };      /* flag disables 1 ms ISR process, if true  */
+bool noCAN       { false };      /* false = CBUS on, true = noCAN = no CBUS  */
+bool debug       { false };      /* false = quiet, true = verbose            */
+bool muteAlarm   { false };      /* false = quiet, true = sounding           */
 
 
 /*------------------------------- objects -----------------------------------*/
@@ -149,7 +155,7 @@ Power  PWR;                   /* Power object                                */
 
 /*---------------------------------------------------- loop() ----------------- 
  * 
- * Loop is the Background process.
+ * this is the Background process.
 */
 
 void loop() 
@@ -164,7 +170,7 @@ void loop()
 //  if( INPUT_SW.isPressed() != input )
 //  {
 //    input = (INPUT_t) ! input;
-//    sendEvent( (ONOFF_t) input, EN_DAYNITE );
+//    sendEvent( (ONOFF_t) input, EN_NIGHTSW );
 //  }
 
   if( inputChange == true )  /* flag set by Event handler  */
@@ -212,7 +218,7 @@ void processChannels()          /*        keep it light as possible          */
 
 /*--------------------------------------------- processChan() ---------------
  * 
- * Process 1 channel. Called from processChannels() 
+ * Process 1 channel. Called from the foreground processChannels() 
 */
 
 void processChan( uint8_t ch, bool & transits )
@@ -425,7 +431,7 @@ void setup()
   noCAN = ! digitalRead( PINCAN );
 
   Serial.begin( 115200 );
-  SerialMon.about( '#' );
+  SerialMon.about( '_' );
   
   PWR.alarm( 250 );                             /* test sounder for 0.25 s    */
 
@@ -441,13 +447,12 @@ void setup()
   
   SerialMon.variables();
   
-  PWR.isOverAmp();
-  PWR.printAmps();
-  
   Timer1.initialize( 1000 );                    /* T1 runs at 1000 us (1 ms)  */
   Timer1.attachInterrupt( processChannels );    /* T1 ISR is Foreground task  */
 
-  Serial << " debug=" << debug << " mute=" << muteAlarm << endl;
+  Serial << " debug=" << debug << " mute=" << muteAlarm;
+  PWR.isOverAmp();
+  PWR.printAmps();
 }
 
 
@@ -458,12 +463,9 @@ void setup()
 
 void setupCBUS()
 {
-  unsigned char sCBUSNAME[8] { "LIGHTS " };   /* 7 chars, trailing space pad */
-  const uint8_t CBUSMODULEID { 99 };
-  
   config.setEEPROMtype( EEPROM_INTERNAL );
-  config.EE_NVS_START = 10;
-  config.EE_NUM_NVS = QTY_NV;         /* QTY_NV is 60. Used in setDefaultNVs */
+  config.EE_NVS_START = 10;                /*  as good a place as anywhere   */
+  config.EE_NUM_NVS = QTY_NV;              /*     setDefaultNVs uses this    */
   config.EE_EVENTS_START = ( config.EE_NVS_START + QTY_NV );
   config.EE_MAX_EVENTS = QTY_EVENT;
   config.EE_NUM_EVS = 1;
@@ -515,7 +517,7 @@ void setupCBUS()
   
   CBUS.setNumBuffers( 4 );                /* more buffers, more memory        */
   
-  CBUS.setOscFreq( 16 * 1e6f );           /* SPI    frequency                 */
+  CBUS.setOscFreq( 16 * 1e6f );           /* SPI frequency MHz                */
   CBUS.setPins( PINSPI_SS, PINSPI_INT );  /* SPI pins, outside of H/W SPI     */
 
   if( noCAN == true )
@@ -562,8 +564,7 @@ void Power::alarm( uint16_t duration_ms )
 
 /*---------------------------------------- Power::isUnderVolt() ----------
  * 
- * If blue LED is not lit, the 12 V line failed or PolyFuse tripped.
- * 12 V feeds onto Blue LED, Vf ~ 2.8 V. ADC ref is 1.1 V.
+ * return true if 12 V line failed or PolyFuse tripped.
 */
 
 bool Power::isUnderVolt()
@@ -610,7 +611,7 @@ void Power::testAmpAndVolt()
     sendEvent( ONOFF_ON, EN_ALARM );
     
     turnOffPWMs();
-    Serial << "! OverAmp or UnderVolt";
+    Serial << "! OverAmp/UnderVolt";
     printAmps();
     do
     {
@@ -618,9 +619,8 @@ void Power::testAmpAndVolt()
     }
     while( isOverAmp() == true || isUnderVolt() == true );
     
-    stopISR = false;
-    
     restorePWMs();
+    stopISR = false;
     sendEvent( ONOFF_OFF, EN_ALARM );
   }
 }
@@ -628,12 +628,12 @@ void Power::testAmpAndVolt()
 
 /*----------------------------- turnOffPWMs() --------------------------
  * 
- * set all channel duty cycles to zero value
+ * set all PWM channel duty cycles to zero value
 */
 
 void turnOffPWMs()
 {
-  Serial << "! all PWM off" << endl;
+  Serial << "! PWMs off" << endl;
   for( uint8_t ch = 0; ch < QTY_CHAN; ch++ )
   {
     analogWrite( PWMPIN[ch], 0 );
@@ -643,12 +643,12 @@ void turnOffPWMs()
 
 /*------------------------------ restorePWMs() -------------------------
  * 
- * restore all running duty cycles
+ * restore all PWM to running duty cycles
 */
 
 void restorePWMs()
 {
-  Serial << ". all PWM restored" << endl;
+  Serial << ". PWMs restored" << endl;
   for( uint8_t ch = 0; ch < QTY_CHAN; ch++ )
   {
     analogWrite( PWMPIN[ch], GAMMA8[var[ch].dcCur] );
@@ -713,23 +713,24 @@ void eventHandler( uint8_t idx, CANFrame *msg )
   uint8_t opc = msg->data[0];
   bool evOn = ( opc == OPC_ASON || opc == OPC_ACON );
   
-  Serial << endl << "> Ev" << idx << ( evOn ? " ON":" OF" ) <<" eVal="<< evVal;
+  Serial << endl << "> Ev" << idx << (evOn ? " xON":" xOF") <<" eVal="<< evVal;
   switch( evVal )
   {
-    case EVAL_DAYNIGHT:
-      Serial << ' ' << sINPUT[evOn];
+    case EVAL_NIGHTSW:
+      Serial << ' ' << sEVAL[EVAL_NIGHTSW];
       if( input != (INPUT_t) evOn )
       {
         input = (INPUT_t) evOn;
-        inputChange = true;             /* flag for loop() to change phases */
+        inputChange = true;             /* flag to cause change phases */
+        Serial << sINPUT[evOn];
       }
-      else Serial << " ignore";
+      else Serial << "ignore";
       break;
     case EVAL_SHUTDOWN:
       Serial << " Shutdown";
       if( evCommand == EVAL_SHUTDOWN && evOn == false )
       {
-         evCommand = EVAL_DAYNIGHT; /* turn off shutdown */
+         evCommand = EVAL_NIGHTSW; /* revert to normal operations  */
          restorePWMs();
       }
       else
@@ -742,29 +743,30 @@ void eventHandler( uint8_t idx, CANFrame *msg )
       }
       break;
     case EVAL_TESTEND:
+      Serial << ' ' << sEVAL[EVAL_TESTEND];
       if( testCh == true )
       {
-        Serial << " end" << sEVAL[evCommand];
+        Serial << sEVAL[evCommand];
         analogWrite( PWMPIN[(evCommand -1)], var[(evCommand -1)].dcCur );
-        evCommand = EVAL_DAYNIGHT;
+        evCommand = EVAL_NIGHTSW;
         testCh = false;
       }
-      else Serial << " ignored";
+      else Serial << "ignore";
       break; 
     default:
       if( evVal > EVAL_TESTCH10 )
       {
         Serial << " unknow!";
       }
-      else
+      else /* therefore its a TestChX eval */
       {
         if( evCommand != evVal && testCh == true )   
         {
-          Serial << " (end" << sEVAL[evCommand] << ')';
+          Serial << " end" << sEVAL[evCommand];
           analogWrite( PWMPIN[(evCommand -1)], var[(evCommand -1)].dcCur );          
         }
         testCh = true;
-        testDC = ( evOn ? 254 : 1 ); 
+        testDC = ( evOn ? (MAXDC - 1) : (MINDC + 1) ); 
         evCommand = evVal;
         Serial << ' ' << sEVAL[evVal] << " dc=" << testDC;
       }
@@ -782,7 +784,7 @@ void eventHandler( uint8_t idx, CANFrame *msg )
 void frameHandler( CANFrame *msg ) 
 {
   PINTP_D30_HIGH;
-  if( debug == true )     /* set/cleared by Serial monitor command */
+  if( debug == true )     /* debug is toggled by serial monitor command */
   {
     Serial << "> rxFrame id" << (msg->id & 0x7f) << " len" << msg->len;
     for( uint8_t i = 0; i < msg->len; i++ ) 
@@ -817,7 +819,7 @@ void sendEvent( ONOFF_t onOff, uint16_t en )
       Serial << endl << "! Error 0x" << _HEX( CBUS.canp->errorFlagRegister() );
     }
     Serial << "< tx ACO" << ( onOff == true ? "N n" : "F n" ) << config.nodeNum 
-    << " e" << en << ( ( en >= QTY_EN ) ? "=?" : sEN[en] ) << endl << endl;
+      << " e" << en << ( ( en >= QTY_EN ) ? "=?" : sEN[en] ) << endl << endl;
   }
 }
 
@@ -845,7 +847,7 @@ void SerMon::cbusState()
 {
   if( noCAN == true )
   {
-      Serial << " NoCAN" << endl;
+    Serial << " NoCAN" << endl;
   }
   else
   {
@@ -906,7 +908,7 @@ void setDefaultNVs()
 
 void SerMon::storedEvents()
 {
-  Serial << " Stored Events" << endl;
+  Serial << endl << " Stored Events" << endl;
   uint8_t count { 0 };
   
   for( uint8_t j = 0; j < config.EE_MAX_EVENTS; j++ ) /* for each storedEvent */
@@ -923,8 +925,8 @@ void SerMon::storedEvents()
       };
       uint8_t eval = config.getEventEVval( j, 1 );
 
-      Serial << " ev" << j << " n" << ( v[0] * 256 ) + v[1]
-        << " e" << ( v[2] * 256 ) + v[3] << " eVal=" << eval << ' '
+      Serial << ' ' << j << "  n" << ( v[0] * 256 ) + v[1]
+        << " e" << ( v[2] * 256 ) + v[3] << " \teVal=" << eval << ' '
         << ( ( eval >= QTY_EVAL ) ? "!unknown" : sEVAL[eval] ) << endl;   
     }
   }
@@ -964,7 +966,7 @@ void SerMon::processKeyBoard()
         CBUS.reset();
         break;
       case 'm':
-        Serial << " freeSRAM " << config.freeSRAM() << endl;
+        Serial << " freeSRAM=" << config.freeSRAM() << endl;
         break;
       case 't':           /* send test message ACOF                     */
         sendEvent( ONOFF_OFF, EN_TESTMSG );
@@ -978,7 +980,7 @@ void SerMon::processKeyBoard()
         break;
       case '*':
         muteAlarm = ! muteAlarm;
-        Serial << " muteAlarm=" << muteAlarm << endl;
+        Serial << " mute=" << muteAlarm << endl;
         break;
       case '?':           /* about                                     */
         SerialMon.about();

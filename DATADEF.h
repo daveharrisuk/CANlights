@@ -22,7 +22,7 @@
 
 const char sEVAL[QTY_EVAL][9] /* fixed width strings */
 {
-  "DayNight",             /* switch day or night          */
+  "NightSw ",             /* switch day or night          */
   "TestCh1 ",             /* Chan 1 DC = 1 or 254         */
   "TestCh2 ",             /* Chan 2 DC = 1 or 254         */
   "TestCh3 ",             /* Chan 3 DC = 1 or 254         */
@@ -39,7 +39,7 @@ const char sEVAL[QTY_EVAL][9] /* fixed width strings */
 
 const char sEN[QTY_EN][9]       /* fixed width strings  */
 {
-  " DayNite",
+  " NightSw",
   " PowerOn",
   " Alarm  ",
   " TestMsg"

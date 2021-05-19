@@ -15,12 +15,19 @@
 #ifndef CANLIGHTS_H__  /* include guard */
 #define CANLIGHTS_H__
 
+#include "CANlights.cpp"
+
+
+unsigned char sCBUSNAME[8] { "LIGHTS " };   /* 7 chars, trailing space pad */
+
+const uint8_t CBUSMODULEID { 99 };
+  
 
 extern const uint8_t QTY_CHAN;  /* qty of PWM channels for LED chans.   PIN.h */
 
 const uint8_t QTY_NV { 60 };    /* qty of Node Variables                      */
   
-const uint8_t QTY_EVENT { 12 }; /* total events required                      */
+const uint8_t QTY_EVENT { 13 }; /* total events required                      */
 
 
 const uint8_t MINDC { 0 };      /* Duty Cycle ranges 0                        */
@@ -30,7 +37,7 @@ const uint8_t MAXDC { 255 };    /*     to 255                                 */
 
 enum EN_t : uint8_t    /* Event Numbers(EN) for ACON/ACOF message sending */
 {
-  EN_DAYNITE = 0,             /* (extInput) On event= Night, Off event= Day  */
+  EN_NIGHTSW = 0,             /* (extInput) On event= Night, Off event= Day  */
   EN_POWERON = 1,             /* On event = Power On, Off event = na         */
   EN_ALARM   = 2,             /* On event = Alarm on, Off event = No Alarm   */
   EN_TESTMSG = 3              /* On event NA, Off event NA                   */
@@ -41,11 +48,11 @@ const uint8_t QTY_EN { 4 };
 enum MODE_t : uint8_t    /* channel mode codes. For global var[] */
 {
   MODE_DAYNIGHT = 0,
-  MODE_DUSK,
-  MODE_DAWN,
-  MODE_DUSKDAWN,
-  MODE_NIGHT010,
-  MODE_DAY010
+  MODE_DUSK     = 1,
+  MODE_DAWN     = 2,
+  MODE_DUSKDAWN = 3,
+  MODE_NIGHT010 = 4,
+  MODE_DAY010   = 5
 };
 const uint8_t QTY_MODE { 6 };
 
@@ -62,22 +69,22 @@ const uint8_t OTY_STATE { 3 };
 enum ONOFF_t : bool   /* CBUS on or off codes */
 {
   ONOFF_OFF = 0,
-  ONOFF_ON = 1
+  ONOFF_ON  = 1
 };
 const uint8_t OTY_ONOFF{ 2 };
 
 
 enum INPUT_t : bool   /* module input codes. for input global var */
 {
-  INPUT_DAY = 0,
-  INPUT_NIGHT
+  INPUT_DAY   = 0,
+  INPUT_NIGHT = 1
 };
 const uint8_t QTY_INPUT { 2 };
 
 
 enum EVAL_t : uint8_t  /* EV values on stored events */
 {
-  EVAL_DAYNIGHT = 0,     /* On event NIGHT, Off event DAY.  Set input global  */
+  EVAL_NIGHTSW  = 0,     /* On event = NIGHT, Off event = DAY.                */
   EVAL_TESTCH1  = 1,     /* On event DC=254, Off event DC=1                   */
   EVAL_TESTCH2  = 2,     /* On event DC=254, Off event DC=1                   */
   EVAL_TESTCH3  = 3,     /* On event DC=254, Off event DC=1                   */
@@ -94,6 +101,11 @@ enum EVAL_t : uint8_t  /* EV values on stored events */
 const uint8_t QTY_EVAL { 13 };
 
 
+class Lights
+{
+  public:
+  
+};
 
 /*----------------------------- class Power ------------------------------------
  *
@@ -113,8 +125,7 @@ class Power
   private :
   
     uint16_t amps;                  /* latest Amp reading                     */
-        
-  
+
     /*  Amps calibrate
      * Rsense = 0R050,   2.0 A = 0.100 V on PINSENSE, into ADC
      * ADC range 0-1023, Vref = 1.10 V.  ADC reads 0.001074 V per unit. 

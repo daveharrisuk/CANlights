@@ -16,14 +16,14 @@
 #define CANLIGHTS_H__
 
 #include "CANlights.cpp"
-
+//#include "DATADEF.h"
 
 unsigned char sCBUSNAME[8] { "LIGHTS " };   /* 7 chars, trailing space pad */
 
 const uint8_t CBUSMODULEID { 99 };
   
 
-extern const uint8_t QTY_CHAN;  /* qty of PWM channels for LED chans.   PIN.h */
+extern const uint8_t QTY_CHAN;  /* qty of PWM channels for LED chans. * PIN.h */
 
 const uint8_t QTY_NV { 60 };    /* qty of Node Variables                      */
   
@@ -101,11 +101,14 @@ enum EVAL_t : uint8_t  /* EV values on stored events */
 const uint8_t QTY_EVAL { 13 };
 
 
-class Lights
-{
-  public:
-  
-};
+//class Lights
+//{
+//  public:
+////  static volatile var_t var[QTY_CHAN];  /* channel variable array. Is modified by ISR */
+//                               /* A mix of NVs, derived and tracking values  */
+//                               
+//  
+//};
 
 /*----------------------------- class Power ------------------------------------
  *
@@ -146,7 +149,9 @@ class Power
 class GetNV
 {
   public :
-   
+    GetNV() { }
+    ~GetNV() { }
+    
     uint8_t tran( uint8_t );  	    /* return transition NV for chan      */
     uint8_t dly( uint8_t, bool );   /* return delay NV for chan & index   */
     uint8_t dc( uint8_t, bool );    /* return DutyCycle NV for chan/index */
@@ -208,7 +213,8 @@ void restorePWMs();                   /* set all PWM to duty cycle to old val */
 
 void setup();                         /* called on power on or reset          */
 void setupCBUS();                     /* called by setup()                    */
-void setupChannels();                 /* called by setup()                    */
+extern void setupChannels();                 /* called by setup()                    */
+
 extern void setupPins();              /* called by setup()  in PIN.cpp        */
 
 

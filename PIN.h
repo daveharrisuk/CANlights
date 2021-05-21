@@ -71,7 +71,7 @@ const uint8_t PINBLUE { A14 };       /* PolyFuse sense, Volts on blue LED    */
 
 /*      Inputs           */
 
-const uint8_t PINDAYNIGHT { A12 };   /* local day/night PB switch            */
+const uint8_t PINNIGHTSW { A12 };    /* local day/night PB switch            */
 const uint8_t PINCAN { 29 };         /* Link in if no CAN connected. Read 0  */
 const uint8_t PINCBUS { 28 };        /* FLiM/SLiM push switch                */
 

@@ -33,7 +33,7 @@ void setupPins()
   
   analogReference( INTERNAL1V1 );      /* MEGA unique, 1.075 mV/bit           */
 
-  pinMode( PINNIGHTSW, INPUT_PULLUP);  /* external input switch. Day is low   */
+  pinMode( PINNIGHTSW, INPUT_PULLUP);  /* external nightSw switch. Day is low */
   pinMode( PINCAN, INPUT_PULLUP );     /* No CAN link. Active low             */
   pinMode( PINCBUS, INPUT_PULLUP );    /* CBUS mode sw. Active low            */
   
